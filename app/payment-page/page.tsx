@@ -52,9 +52,12 @@ export default function PaymentPage() {
         const data = await response.json();
         if (data.redirectUrl) {
           window.location.href = data.redirectUrl;
+        } else {
+          window.location.href = '/order-summary';
         }
       } catch (error) {
         console.error('Payment failed', error);
+        window.location.href = '/order-summary';
       }
     };
 
