@@ -145,9 +145,9 @@ function Index() {
 
         <SaleBanner />
 
-        <section className="product-grid" aria-label="Recommended products">
+        <section className="products-grid-custom" aria-label="Recommended products">
           {productFeed.map((product) => (
-            <Link href={{ pathname: "/product", query: { id: product.id } }} className="product" key={product.id}>
+            <Link href={{ pathname: "/product", query: { id: product.id } }} className="product-card" key={product.id}>
               <div className="product-media">
                 <img src={product.image} alt={product.title} />
                 <span className="product-rating">
