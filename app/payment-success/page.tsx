@@ -2,12 +2,12 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, Suspense } from "react"
 
 
 
 
-function SuccessPage() {
+function SuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('order_id');
@@ -382,4 +382,10 @@ function SuccessPage() {
   )
 }
 
-export default SuccessPage;
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<div className="store-shell" style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Roboto', sans-serif" }}>Loading...</div>}>
+      <SuccessContent />
+    </Suspense>
+  );
+}

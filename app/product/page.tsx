@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams , useRouter } from 'next/navigation';
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -94,7 +94,7 @@ const reviews = [
 
 // Removed hardcoded similarProducts
 
-function ProductPage() {
+function ProductContent() {
   const searchParams = Object.fromEntries(useSearchParams().entries());
   const product = productsData.find((p) => p.id === searchParams.id) || productsData[0];
   const galleryImages = product.gallery || [product.image];
@@ -390,4 +390,10 @@ function ProductPage() {
   );
 }
 
-export default ProductPage;
+export default function ProductPage() {
+  return (
+    <Suspense fallback={<div className="store-shell" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+      <ProductContent />
+    </Suspense>
+  );
+}

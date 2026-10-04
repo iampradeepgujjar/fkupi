@@ -2,7 +2,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 
 import { CheckoutHeader } from '../../components/CheckoutHeader'
 import { SaleBanner } from '../../components/SaleBanner'
@@ -12,7 +12,7 @@ const statesList = [
 ];
 
 
-function AddressPage() {
+function AddressContent() {
   const router = useRouter()
   const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
   const [initialData] = useState(() => {
@@ -224,4 +224,10 @@ function AddressPage() {
   )
 }
 
-export default AddressPage;
+export default function AddressPage() {
+  return (
+    <Suspense fallback={<div className="store-shell" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+      <AddressContent />
+    </Suspense>
+  );
+}

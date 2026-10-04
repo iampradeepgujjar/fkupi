@@ -2,12 +2,12 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { SaleBanner } from "../../components/SaleBanner"
 
 
 
-function PaymentPage() {
+function PaymentContent() {
   const router = useRouter();
   const searchParams = Object.fromEntries(useSearchParams().entries());
   const [selectedMethod, setSelectedMethod] = useState("phonepe");
@@ -266,4 +266,10 @@ function PaymentPage() {
   )
 }
 
-export default PaymentPage;
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={<div className="store-shell" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+      <PaymentContent />
+    </Suspense>
+  );
+}

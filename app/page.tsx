@@ -1,7 +1,6 @@
 "use client";
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from "react";
 import { Grid2X2, Home, Search, ShoppingCart, Star, UserRound } from "lucide-react";
 
