@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "pixelfp",
+	"name": "online-shooping-web",
 	"compatibility_date": "2026-10-04",
 	"main": "vinext/server/fetch-handler",
 	"assets": {
