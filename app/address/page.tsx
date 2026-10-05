@@ -17,7 +17,7 @@ function AddressContent() {
   const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
   const [initialData] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('savedAddress');
+      const saved = sessionStorage.getItem('savedAddress') || localStorage.getItem('savedAddress');
       return saved ? JSON.parse(saved) : {};
     } catch { return {}; }
   });
@@ -39,14 +39,22 @@ function AddressContent() {
       altPhone: data.get('altPhone') as string || '',
       phone: data.get('phone') as string || '',
     };
-    sessionStorage.setItem('savedAddress', JSON.stringify(saved));
+    const savedString = JSON.stringify(saved);
+    try {
+      sessionStorage.setItem('savedAddress', savedString);
+      localStorage.setItem('savedAddress', savedString);
+    } catch (err) {}
     router.push('/order-summary');
   }
 
   const searchParams = Object.fromEntries(useSearchParams().entries());
   useEffect(() => {
     document.title = "Address";
-    if (sessionStorage.getItem('savedAddress') && !searchParams.edit) {
+    const existing = sessionStorage.getItem('savedAddress') || localStorage.getItem('savedAddress');
+    if (existing && !searchParams.edit) {
+      try {
+        sessionStorage.setItem('savedAddress', existing);
+      } catch (err) {}
       router.replace('/order-summary');
       return;
     }

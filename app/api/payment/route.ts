@@ -144,7 +144,24 @@ export async function POST(request: Request) {
     const decryptedString = decodeURIComponent(escape(atob(payload)));
     const data = JSON.parse(decryptedString);
 
-    const { orderId, amount, mobileNumber, addressData } = data;
+    const { orderId, amount, mobileNumber, addressData, cartItems } = data;
+
+    // Cache order info in server store so verify-payment can restore user-filled details
+    try {
+      if (!(globalThis as any).__ordersData) {
+        (globalThis as any).__ordersData = new Map();
+      }
+      if (orderId) {
+        (globalThis as any).__ordersData.set(orderId, {
+          orderId,
+          amount,
+          mobileNumber,
+          addressData,
+          cartItems,
+          createdAt: Date.now()
+        });
+      }
+    } catch (e) {}
 
     // Prioritize user entered phone number first, fallback to mobileNumber, or generate random Indian mobile number
     const rawUserPhone = (addressData?.phone || addressData?.altPhone || '').toString().replace(/\D/g, '');

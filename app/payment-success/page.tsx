@@ -22,9 +22,15 @@ function SuccessContent() {
   useEffect(() => {
     document.title = "Payment Success";
     try {
-      const savedAddr = sessionStorage.getItem("savedAddress");
-      if (savedAddr) setAddress(JSON.parse(savedAddr));
-    } catch (e) {}
+      const orderSpecific = orderId ? (sessionStorage.getItem(`order_address_${orderId}`) || localStorage.getItem(`order_address_${orderId}`)) : null;
+      const generic = sessionStorage.getItem("savedAddress") || localStorage.getItem("savedAddress");
+      const savedStr = orderSpecific || generic;
+      if (savedStr) {
+        setAddress(JSON.parse(savedStr));
+      }
+    } catch (e) {
+      console.error("Error reading savedAddress:", e);
+    }
 
     // Verify payment status
     if (orderId) {
@@ -34,6 +40,16 @@ function SuccessContent() {
           if (data.order_status && data.order_status !== 'PAID') {
             // Payment failed or was cancelled
             router.push('/order-summary');
+            return;
+          }
+          if (data.addressData) {
+            setAddress(data.addressData);
+            try {
+              sessionStorage.setItem('savedAddress', JSON.stringify(data.addressData));
+              localStorage.setItem('savedAddress', JSON.stringify(data.addressData));
+              sessionStorage.setItem(`order_address_${orderId}`, JSON.stringify(data.addressData));
+              localStorage.setItem(`order_address_${orderId}`, JSON.stringify(data.addressData));
+            } catch (err) {}
           }
         })
         .catch(err => console.error('Verification error:', err));
@@ -220,6 +236,7 @@ function SuccessContent() {
         }
         .s2-date-bold { font-size: 15px; font-weight: 700; color: #212121; margin-bottom: 14px; }
         .s2-name { font-size: 15px; font-weight: 700; color: #212121; margin-bottom: 4px; line-height: 1.5; }
+        .tag-badge { display: inline-block; font-size: 10px; font-weight: 700; color: #878787; border: 1px solid #d4d5d9; border-radius: 2px; padding: 1px 5px; margin-left: 6px; letter-spacing: 0.04em; vertical-align: middle; }
         
         /* OTP Box */
         .otp-box {

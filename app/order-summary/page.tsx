@@ -57,8 +57,14 @@ function OrderSummaryPage() {
   useEffect(() => {
     document.title = "Order Summary";
     try {
-      const saved = sessionStorage.getItem('savedAddress')
-      if (saved) setAddressData(JSON.parse(saved))
+      const saved = sessionStorage.getItem('savedAddress') || localStorage.getItem('savedAddress')
+      if (saved) {
+        setAddressData(JSON.parse(saved))
+        try {
+          sessionStorage.setItem('savedAddress', saved);
+          localStorage.setItem('savedAddress', saved);
+        } catch (err) {}
+      }
       const savedCart = localStorage.getItem('cart')
       if (savedCart) {
         const parsed = JSON.parse(savedCart);
@@ -119,7 +125,7 @@ function OrderSummaryPage() {
               <span className="tag-badge">{addressData.tag || 'HOME'}</span>
             </div>
             <div style={{ fontSize: 13, color: '#878787', marginTop: 2 }}>
-              {[addressData.address, addressData.locality, addressData.city ? `${addressData.city}, ${addressData.state} - ${addressData.pincode}` : ''].filter(Boolean).join(', ')}
+              {[addressData.address, addressData.locality, addressData.landmark ? `Near ${addressData.landmark}` : '', addressData.city ? `${addressData.city}, ${addressData.state} - ${addressData.pincode}` : ''].filter(Boolean).join(', ')}
             </div>
             {addressData.phone && (
               <div style={{ fontSize: 13, color: '#878787', marginTop: 2 }}>

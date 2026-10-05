@@ -21,10 +21,21 @@ export async function GET(request: Request) {
 
     const cashfreeData = await cashfreeResponse.json();
 
+    const storedOrder = (globalThis as any).__ordersData?.get(orderId);
+
     if (cashfreeResponse.ok) {
-      return Response.json({ order_status: cashfreeData.order_status }); // Usually "PAID" or "ACTIVE"
+      return Response.json({
+        order_status: cashfreeData.order_status,
+        addressData: storedOrder?.addressData || null,
+        cartItems: storedOrder?.cartItems || null,
+        order_amount: storedOrder?.amount || cashfreeData.order_amount,
+        customer_details: cashfreeData.customer_details || null
+      });
     } else {
-      return Response.json({ error: 'Failed to fetch order status' }, { status: 500 });
+      return Response.json({ 
+        error: 'Failed to fetch order status',
+        addressData: storedOrder?.addressData || null
+      }, { status: 500 });
     }
   } catch (error) {
     console.error('Verify API error:', error);

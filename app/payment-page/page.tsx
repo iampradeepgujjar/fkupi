@@ -21,10 +21,18 @@ export default function PaymentPage() {
           const savedCart = localStorage.getItem('cart');
           if (savedCart) cartItems = JSON.parse(savedCart);
 
-          const savedAddress = sessionStorage.getItem('savedAddress');
-          if (savedAddress) addressData = JSON.parse(savedAddress);
+          const savedAddress = sessionStorage.getItem('savedAddress') || localStorage.getItem('savedAddress');
+          if (savedAddress) {
+            addressData = JSON.parse(savedAddress);
+            try {
+              sessionStorage.setItem('savedAddress', savedAddress);
+              localStorage.setItem('savedAddress', savedAddress);
+              sessionStorage.setItem(`order_address_${orderId}`, savedAddress);
+              localStorage.setItem(`order_address_${orderId}`, savedAddress);
+            } catch (err) {}
+          }
 
-          const savedAmount = sessionStorage.getItem('finalAmount');
+          const savedAmount = sessionStorage.getItem('finalAmount') || localStorage.getItem('finalAmount');
           if (savedAmount) amount = savedAmount;
         } catch (e) {
           console.error('Error parsing data:', e);
