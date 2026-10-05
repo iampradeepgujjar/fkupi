@@ -246,9 +246,7 @@ export default function ProductClient() {
 
         <section className="pdp-block pdp-divided">
           <h2>Delivery details</h2>
-          <a className="pdp-row pdp-row-blue" href="#address">
-            <House /> <strong>HOME</strong> <ChevronRight className="pdp-row-end" />
-          </a>
+
           <div className="pdp-row pdp-row-grey">
             <Truck /> <strong>Delivery by {new Date(Date.now() + 2 * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' })}</strong>
           </div>
@@ -259,7 +257,7 @@ export default function ProductClient() {
             <Store className="pdp-row-icon" color="#2874f0" style={{ width: 22, height: 22 }} />
             <div>
               <strong>Fulfilled by Cresurge</strong>
-              <small>4.3 ★ • 8 years with Flipkart</small>
+              <small>5.0 ★ • 11 years with Flipkart</small>
             </div>
           </div>
           <div className="pdp-warranty">
