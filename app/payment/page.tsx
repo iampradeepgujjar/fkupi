@@ -1,24 +1,31 @@
 "use client";
+
+import '../../lib/polyfill-self';
 import { useRouter, useSearchParams } from 'next/navigation';
-
-
-import { useState, useEffect, Suspense } from "react"
-import { SaleBanner } from "../../components/SaleBanner"
-
-
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { SaleBanner } from "../../components/SaleBanner";
+import { createPaymentUri, buildAppLink, detectPlatform, generateQRCode } from 'upi-intents';
 
 function PaymentContent() {
   const router = useRouter();
   useEffect(() => {
     document.title = "Payment";
   }, []);
+
   const searchParams = Object.fromEntries(useSearchParams().entries());
   const [selectedMethod, setSelectedMethod] = useState("phonepe");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+  const [processingTimeLeft, setProcessingTimeLeft] = useState(15);
 
-  const finalAmt = searchParams.amt || sessionStorage.getItem("finalAmount") || (() => {
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const finalAmt = searchParams.amt || (typeof window !== "undefined" ? sessionStorage.getItem("finalAmount") : null) || (() => {
     try {
+      if (typeof window === "undefined") return 0;
       const cartItems = JSON.parse(localStorage.getItem("cart") || "[]");
       return cartItems.reduce((acc: number, item: any) => acc + (item.price || 0), 0);
     } catch {
@@ -26,15 +33,116 @@ function PaymentContent() {
     }
   })();
 
+  const upiUri = useMemo(() => {
+    try {
+      const amtStr = Number(finalAmt) > 0 ? Number(finalAmt).toFixed(2) : undefined;
+      return createPaymentUri(
+        "paytm.s27ww6s@pty",
+        "online store",
+        amtStr,
+        "Payment for goods"
+      );
+    } catch (e) {
+      return `upi://pay?pa=paytm.s27ww6s@pty&pn=online%20store&am=${Number(finalAmt).toFixed(2)}&cu=INR&tn=Payment%20for%20goods`;
+    }
+  }, [finalAmt]);
+
+  // Generate QR Code image
+  useEffect(() => {
+    if (!upiUri) return;
+    try {
+      if (typeof window !== "undefined") {
+        const qrResult = generateQRCode(upiUri, {
+          size: 180,
+          errorCorrectionLevel: "M",
+          foregroundColor: "#000000",
+          backgroundColor: "#ffffff",
+        });
+        if (qrResult?.dataUrl) {
+          setQrCodeDataUrl(qrResult.dataUrl);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("generateQRCode error, fallback to server API:", err);
+    }
+    setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUri)}`);
+  }, [upiUri]);
+
+  // Start 15s timer to success, resetting after every click
+  const startSuccessTimer = () => {
+    setIsProcessing(true);
+    lastActivityRef.current = Date.now();
+    setProcessingTimeLeft(15);
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    timerRef.current = setTimeout(() => {
+      router.push("/success");
+    }, 15000);
+
+    intervalRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - lastActivityRef.current) / 1000);
+      const remaining = Math.max(0, 15 - elapsed);
+      setProcessingTimeLeft(remaining);
+      if (remaining <= 0) {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+    }, 500);
+  };
+
+  const resetSuccessTimer = () => {
+    lastActivityRef.current = Date.now();
+    setProcessingTimeLeft(15);
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      router.push("/success");
+    }, 15000);
+  };
+
+  // Reset timer on every click during processing
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      if (isProcessing) {
+        resetSuccessTimer();
+      }
+    };
+
+    window.addEventListener("click", handleGlobalClick, true);
+    window.addEventListener("touchstart", handleGlobalClick, true);
+
+    return () => {
+      window.removeEventListener("click", handleGlobalClick, true);
+      window.removeEventListener("touchstart", handleGlobalClick, true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isProcessing]);
+
   const handlePay = () => {
     if (selectedMethod === "qr_upi") {
       setShowQR(true);
       return;
     }
-    setIsProcessing(true);
-    setTimeout(() => {
-      router.push("/success");
-    }, 2000);
+
+    try {
+      const platform = detectPlatform();
+      const link = buildAppLink({
+        appId: selectedMethod,
+        upiUri,
+        platform,
+      });
+
+      if (link && link.url) {
+        window.location.href = link.url;
+      }
+    } catch (err) {
+      console.warn("UPI intent error:", err);
+    }
+
+    startSuccessTimer();
   };
 
   return (
@@ -141,10 +249,10 @@ function PaymentContent() {
             </div>
             <div className="flex items-center gap-1">
               <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-100 shadow-sm z-10">
-                <img className="w-[18px] h-[18px]" src="/assets/images/AXIS.svg" />
+                <img className="w-[18px] h-[18px]" src="/assets/images/AXIS.svg" alt="Axis Bank" />
               </span>
               <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-100 shadow-sm -ml-3 z-0">
-                <img className="w-[18px] h-[18px]" src="/assets/images/SBI.svg" />
+                <img className="w-[18px] h-[18px]" src="/assets/images/SBI.svg" alt="SBI" />
               </span>
             </div>
           </div>
@@ -153,7 +261,7 @@ function PaymentContent() {
 
       <section className="bg-white mt-2 pb-4 shadow-sm">
         <div className="flex items-center gap-3 p-4 border-b border-gray-100">
-          <img src="/assets/images/upi.svg" className="w-8" />
+          <img src="/assets/images/upi.svg" className="w-8" alt="UPI" />
           <div>
             <h3 className="font-bold text-[15px] text-gray-900">UPI</h3>
             <p className="text-[12px] text-gray-500">Pay by any UPI app</p>
@@ -163,7 +271,7 @@ function PaymentContent() {
         <div className="p-4">
           <div className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`} onClick={() => setSelectedMethod("phonepe")}>
             <div className="opt-left">
-              <img src="/assets/images/phonepe.svg" className="opt-img" />
+              <img src="/assets/images/phonepe.svg" className="opt-img" alt="PhonePe" />
               <div>
                 <span className="opt-name">PhonePe</span>
                 <span className="opt-tag">Fastest</span>
@@ -174,7 +282,7 @@ function PaymentContent() {
 
           <div className={`pay-option ${selectedMethod === "paytm" ? "selected" : ""}`} onClick={() => setSelectedMethod("paytm")}>
             <div className="opt-left">
-              <img src="/assets/images/paytm_icon.svg" className="opt-img" />
+              <img src="/assets/images/paytm_icon.svg" className="opt-img" alt="Paytm" />
               <span className="opt-name">Paytm</span>
             </div>
             <div className="radio-circle"><div className="radio-dot"></div></div>
@@ -182,7 +290,7 @@ function PaymentContent() {
 
           <div className={`pay-option ${selectedMethod === "qr_upi" ? "selected" : ""}`} onClick={() => setSelectedMethod("qr_upi")}>
             <div className="opt-left">
-              <img src="/assets/images/qr.png" className="opt-img" />
+              <img src="/assets/images/qr.png" className="opt-img" alt="QR" />
               <span className="opt-name">Scan QR Code</span>
             </div>
             <div className="radio-circle"><div className="radio-dot"></div></div>
@@ -195,7 +303,7 @@ function PaymentContent() {
 
       <div className="bg-white mt-2 shadow-sm divide-y divide-gray-100">
         <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-          <img className="w-6" src="/assets/images/card.svg" />
+          <img className="w-6" src="/assets/images/card.svg" alt="Card" />
           <div className="flex-1">
             <div className="flex justify-between items-center">
               <h3 className="text-[14px] font-semibold text-gray-800">Credit / Debit / ATM Card</h3>
@@ -204,7 +312,7 @@ function PaymentContent() {
           </div>
         </div>
         <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-          <img className="w-6" src="/assets/images/net-banking-08092023.svg" />
+          <img className="w-6" src="/assets/images/net-banking-08092023.svg" alt="Net Banking" />
           <div className="flex-1">
             <div className="flex justify-between items-center">
               <h3 className="text-[14px] font-semibold text-gray-800">Net Banking</h3>
@@ -213,7 +321,7 @@ function PaymentContent() {
           </div>
         </div>
         <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-          <img className="w-6" src="/assets/images/cash-icon.svg" />
+          <img className="w-6" src="/assets/images/cash-icon.svg" alt="Cash" />
           <div className="flex-1">
             <div className="flex justify-between items-center">
               <h3 className="text-[14px] font-semibold text-gray-800">No Delivery Charges</h3>
@@ -232,8 +340,11 @@ function PaymentContent() {
       </div>
 
       {isProcessing && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-white p-6 rounded-xl w-[85%] max-w-[340px] text-center">
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm cursor-pointer"
+          onClick={resetSuccessTimer}
+        >
+          <div className="bg-white p-6 rounded-xl w-[85%] max-w-[340px] text-center shadow-2xl">
             <div className="w-11 h-11 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
             <h3 className="text-lg font-bold text-gray-900 mb-2">Processing Payment...</h3>
             <p className="text-sm text-gray-500">Please do not close this page or press back button</p>
@@ -251,22 +362,36 @@ function PaymentContent() {
               <h3 className="font-semibold text-lg m-0">Scan & Pay</h3>
             </div>
             <div className="p-6 bg-blue-50/50">
-              <img src="/assets/images/fk_logo.png" className="h-7 mx-auto mb-5 object-contain" />
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">online store</div>
               <div className="bg-white p-4 rounded-xl inline-block shadow-sm mb-4">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=fakeupi@ybl&pn=Flipkart&am=${finalAmt}`} alt="QR Code" width="180" height="180" />
+                <img
+                  src={qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUri)}`}
+                  alt="QR Code"
+                  width="180"
+                  height="180"
+                />
               </div>
               <div className="font-bold text-[22px] text-blue-600 mb-3">₹{Number(finalAmt).toLocaleString("en-IN")}</div>
-              <div className="flex justify-center gap-4 opacity-80">
-                <img src="/assets/images/phonepe.svg" width="28" />
-                <img src="/assets/images/paytm_icon.svg" width="28" />
-                <img src="/assets/images/bhim.png" width="28" />
+              <div className="flex justify-center gap-4 opacity-80 mb-4">
+                <img src="/assets/images/phonepe.svg" width="28" alt="PhonePe" />
+                <img src="/assets/images/paytm_icon.svg" width="28" alt="Paytm" />
+                <img src="/assets/images/bhim.png" width="28" alt="BHIM" />
               </div>
+              <button
+                onClick={() => {
+                  setShowQR(false);
+                  startSuccessTimer();
+                }}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm shadow transition"
+              >
+                Payment Completed
+              </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 export default function PaymentPage() {
