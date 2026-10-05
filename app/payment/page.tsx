@@ -16,7 +16,7 @@ const ENABLE_PAYTM = true;
 const ENABLE_QR = true;
 // ==========================================
 const upiId = "paytm.s27ww6s@pty";
-const payeeName = "Flipkart India";
+const payeeName = "Online Store";
 const MERCHANT_NAME = payeeName;
 const pp = upiId;
 const pt = upiId;
@@ -117,8 +117,8 @@ function PaymentContent() {
     const finalSellingPrice = passedAmt
       ? parseFloat(passedAmt)
       : storedAmount
-      ? parseFloat(storedAmount)
-      : calculatedTotal;
+        ? parseFloat(storedAmount)
+        : calculatedTotal;
 
     const totalCount = Object.values(loadedQuantities).reduce((a, b) => a + b, 0);
 
