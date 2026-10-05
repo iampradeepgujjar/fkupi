@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef, Suspense } from "react";
 import { SaleBanner } from "../../components/SaleBanner";
 import { generateQRCode } from 'upi-intents';
+import productsData from "../../data/products.json";
 
 // ==========================================
 // 💰 PAYMENT CONFIGURATION & HELPERS
@@ -22,13 +23,20 @@ function PaymentContent() {
   const router = useRouter();
   const searchParams = Object.fromEntries(useSearchParams().entries());
 
-  // Default item data & product states
+  const defaultProduct = productsData && productsData.length > 0 ? productsData[0] : null;
+  const defaultMrp = defaultProduct ? (parseInt((defaultProduct.oldPrice || "").replace(/[^\d]/g, ""), 10) || defaultProduct.mrp || 10859) : 10859;
+  const defaultPrice = defaultProduct ? (parseInt((defaultProduct.newPrice || "").replace(/[^\d]/g, ""), 10) || defaultProduct.price || 299) : 299;
+
+  const [cartProducts, setCartProducts] = useState<any[]>(defaultProduct ? [defaultProduct] : []);
+  const [quantities, setQuantities] = useState<Record<string, number>>(defaultProduct ? { [defaultProduct.id]: 1 } : {});
+
+  // Dynamic item data & product states
   const [itemData, setItemData] = useState({
-    img1: "/data/media/b1792fb9-91c1-49b4-a0b5-68d9bcb8a36d-6ac08996b2e7f-6ac089b969ef1-6ac08ad421223-6ac3a57333c4c-6ac3a5b450f1b/6ac3a9b4e7193_-original-imahzy72ar7xqqje.jpeg",
-    name: "Magnum by Safari Medium Check-in Suitcase (66.5 cm) 8 Wheels - THERON 66 4W SILVER - Silver",
-    color: "",
-    selling_price: 299,
-    mrp: 10859
+    img1: defaultProduct?.image || "",
+    name: defaultProduct?.title || "Product",
+    color: defaultProduct?.highlights?.Color || "",
+    selling_price: defaultPrice,
+    mrp: defaultMrp
   });
 
   const [currentMode, setCurrentMode] = useState<"UPI" | "COD">("UPI");
@@ -45,42 +53,81 @@ function PaymentContent() {
   useEffect(() => {
     document.title = "Payment";
 
-    // Initialize itemData and price from URL, storage or defaults
-    const passedAmt = searchParams.amt;
-    let initialSp = 299;
-    let initialMrp = 10859;
-    let initialName = "Magnum by Safari Medium Check-in Suitcase (66.5 cm) 8 Wheels - THERON 66 4W SILVER - Silver";
-    let initialImg = "";
+    let loadedProducts: any[] = [];
+    const loadedQuantities: Record<string, number> = {};
 
     try {
-      const storedAmount = sessionStorage.getItem("finalAmount") || localStorage.getItem("finalAmount");
-      const cartItems = JSON.parse(localStorage.getItem("cart") || "[]");
+      const savedQuantitiesStr = sessionStorage.getItem("orderQuantities");
+      const savedQuantities = savedQuantitiesStr ? JSON.parse(savedQuantitiesStr) : {};
 
-      if (cartItems.length > 0) {
-        const first = cartItems[0];
-        if (first.title || first.name) initialName = first.title || first.name;
-        if (first.image) initialImg = first.image;
-        if (first.mrp) initialMrp = Number(first.mrp);
-        const calculatedSp = cartItems.reduce((acc: number, item: any) => acc + (item.price || 0), 0);
-        if (calculatedSp > 0) initialSp = calculatedSp;
-      }
+      const savedCart = localStorage.getItem("cart");
+      if (savedCart) {
+        const parsed = JSON.parse(savedCart);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach((item: any) => {
+            const id = item?.id || (typeof item === "string" ? item : null);
+            if (!id) return;
 
-      if (passedAmt) {
-        initialSp = parseFloat(passedAmt);
-      } else if (storedAmount) {
-        initialSp = parseFloat(storedAmount);
+            // Prioritize sessionStorage quantity if available, otherwise accumulate cart quantities
+            if (savedQuantities[id]) {
+              loadedQuantities[id] = savedQuantities[id];
+            } else {
+              loadedQuantities[id] = (loadedQuantities[id] || 0) + (item.qty || 1);
+            }
+
+            const foundInDb = productsData.find((p: any) => p.id === id);
+            const fullProduct = foundInDb ? { ...foundInDb, ...item } : item;
+
+            if (!loadedProducts.find((p) => p.id === id)) {
+              loadedProducts.push(fullProduct);
+            }
+          });
+        }
       }
     } catch (e) {
       console.warn("Storage read error:", e);
     }
 
-    setItemData((prev) => ({
-      ...prev,
-      name: initialName,
-      img1: initialImg || prev.img1,
-      selling_price: initialSp,
-      mrp: initialMrp
-    }));
+    if (loadedProducts.length === 0 && productsData && productsData.length > 0) {
+      loadedProducts = [productsData[0]];
+      loadedQuantities[productsData[0].id] = 1;
+    }
+
+    let calculatedMrp = 0;
+    let calculatedTotal = 0;
+
+    loadedProducts.forEach((p) => {
+      const qty = loadedQuantities[p.id] || 1;
+      const mrpVal = parseInt((p.oldPrice || "").replace(/[^\d]/g, ""), 10) || p.mrp || 0;
+      const priceVal = parseInt((p.newPrice || "").replace(/[^\d]/g, ""), 10) || p.price || 0;
+      calculatedMrp += mrpVal * qty;
+      calculatedTotal += priceVal * qty;
+    });
+
+    const passedAmt = searchParams.amt;
+    const storedAmount = sessionStorage.getItem("finalAmount") || localStorage.getItem("finalAmount");
+
+    const finalSellingPrice = passedAmt
+      ? parseFloat(passedAmt)
+      : storedAmount
+      ? parseFloat(storedAmount)
+      : calculatedTotal;
+
+    const totalCount = Object.values(loadedQuantities).reduce((a, b) => a + b, 0);
+
+    const displayName = loadedProducts.length > 1
+      ? `${loadedProducts[0].title} (+${totalCount - 1} more items)`
+      : loadedProducts[0]?.title || "Product";
+
+    setCartProducts(loadedProducts);
+    setQuantities(loadedQuantities);
+    setItemData({
+      img1: loadedProducts[0]?.image || "",
+      name: displayName,
+      color: loadedProducts[0]?.highlights?.Color || "",
+      selling_price: finalSellingPrice,
+      mrp: calculatedMrp || finalSellingPrice
+    });
   }, []);
 
   // Toggle Between UPI (Full Amount) and COD (Partial Amount)
@@ -313,59 +360,142 @@ function PaymentContent() {
         </div>
       </header>
 
-      {/* Product Summary & Price Collapsible */}
-      <div className="bg-white px-4 py-2 border-b border-gray-200 flex items-center justify-between text-xs text-gray-600">
-        <div className="truncate flex-1 pr-2">
-          <span id="product-title" className="font-medium text-gray-800">
-            {itemData.name + (itemData.color ? ` (${itemData.color})` : '')}
-          </span>
-        </div>
+      {/* Unified Price Details Accordion - Keeps all items and prices in a single accordion */}
+      <section className="bg-white border-b border-gray-200 mt-2 shadow-sm overflow-hidden">
         <div
-          className="flex items-center gap-1 font-semibold text-blue-600 cursor-pointer shrink-0"
+          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-gray-50/50 transition-colors"
           onClick={togglePriceDetails}
         >
-          <span className="selling_price font-bold text-gray-900">₹{formatINR(itemData.selling_price)}</span>
-          <svg
-            id="price-chevron"
-            className="w-4 h-4 transition-transform duration-200"
-            style={{ transform: isPriceDetailsOpen ? "rotate(0deg)" : "rotate(180deg)" }}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-          </svg>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-bold text-gray-800 tracking-wide">
+              Price Details ({cartProducts.reduce((acc, p) => acc + (quantities[p.id] || 1), 0)} {cartProducts.reduce((acc, p) => acc + (quantities[p.id] || 1), 0) === 1 ? 'item' : 'items'})
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="selling_price font-bold text-gray-900 text-sm">
+              ₹{formatINR(itemData.selling_price)}
+            </span>
+            <svg
+              id="price-chevron"
+              className="w-4 h-4 transition-transform duration-200 text-gray-400"
+              style={{ transform: isPriceDetailsOpen ? "rotate(0deg)" : "rotate(180deg)" }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
-      </div>
 
-      {/* Price Details Dropdown */}
-      <div
-        id="price-details"
-        className="overflow-hidden transition-all duration-300 bg-gray-50 border-b border-gray-200 px-4 text-xs"
-        style={{
-          maxHeight: isPriceDetailsOpen ? "160px" : "0px",
-          opacity: isPriceDetailsOpen ? "1" : "0",
-          paddingTop: isPriceDetailsOpen ? "10px" : "0px",
-          paddingBottom: isPriceDetailsOpen ? "10px" : "0px"
-        }}
-      >
-        <div className="flex justify-between py-1 text-gray-600">
-          <span>Price (1 item)</span>
-          <span className="mrp text-gray-400 line-through">₹{formatINR(itemData.mrp)}</span>
+        {/* Collapsible Content: Keeps ALL items AND prices in a single accordion */}
+        <div
+          id="price-details"
+          className="overflow-hidden transition-all duration-300 bg-gray-50/60 border-t border-gray-100"
+          style={{
+            maxHeight: isPriceDetailsOpen ? "1500px" : "0px",
+            opacity: isPriceDetailsOpen ? "1" : "0",
+            paddingTop: isPriceDetailsOpen ? "12px" : "0px",
+            paddingBottom: isPriceDetailsOpen ? "14px" : "0px"
+          }}
+        >
+          {/* Section 1: All Items in the Cart */}
+          <div className="px-3.5 mb-3">
+            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+              Items in this Order ({cartProducts.reduce((acc, p) => acc + (quantities[p.id] || 1), 0)})
+            </div>
+            <div className="divide-y divide-gray-100 bg-white rounded-lg border border-gray-200 overflow-hidden">
+              {cartProducts.map((product, idx) => {
+                const qty = quantities[product.id] || 1;
+                const pMrp = (parseInt((product.oldPrice || "").replace(/[^\d]/g, ""), 10) || product.mrp || 0) * qty;
+                const pPrice = (parseInt((product.newPrice || "").replace(/[^\d]/g, ""), 10) || product.price || 0) * qty;
+
+                return (
+                  <div key={product.id || idx} className="p-3 flex items-start gap-3">
+                    <img
+                      id={idx === 0 ? "item_image" : undefined}
+                      src={product.image || itemData.img1}
+                      alt={product.title}
+                      className="w-14 h-14 object-cover rounded border border-gray-200 shrink-0 bg-gray-50"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4
+                        id={idx === 0 ? "product-title" : undefined}
+                        className="text-[12px] font-medium text-gray-900 line-clamp-2 leading-tight"
+                      >
+                        {product.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-semibold">
+                          Qty: {qty}
+                        </span>
+                        {product.highlights?.Brand ? (
+                          <span className="text-[10px] text-gray-500 truncate">
+                            {product.highlights.Brand}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-blue-600 font-semibold">
+                            Flipkart Assured
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className="selling_price text-[13px] font-bold text-gray-900">
+                          ₹{formatINR(pPrice)}
+                        </span>
+                        {pMrp > pPrice && (
+                          <>
+                            <span className="mrp text-[11px] text-gray-400 line-through">
+                              ₹{formatINR(pMrp)}
+                            </span>
+                            <span className="text-[10px] font-bold text-green-700">
+                              {product.discount || `${Math.round(((pMrp - pPrice) / pMrp) * 100)}% off`}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: Complete Price Breakdown */}
+          <div className="px-3.5 text-xs">
+            <div className="bg-white p-3.5 rounded-lg border border-gray-200">
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2.5">
+                Price Breakdown
+              </div>
+              <div className="flex justify-between py-1 text-gray-600">
+                <span>Price ({cartProducts.reduce((acc, p) => acc + (quantities[p.id] || 1), 0)} {cartProducts.reduce((acc, p) => acc + (quantities[p.id] || 1), 0) === 1 ? 'item' : 'items'})</span>
+                <span className="mrp text-gray-400 line-through">₹{formatINR(itemData.mrp)}</span>
+              </div>
+              <div className="flex justify-between py-1 text-gray-600">
+                <span>Selling Price</span>
+                <span className="selling_price font-semibold text-gray-900">₹{formatINR(itemData.selling_price)}</span>
+              </div>
+              <div className="flex justify-between py-1 text-green-700">
+                <span>Discount</span>
+                <span className="font-semibold">-₹{formatINR(Math.max(0, itemData.mrp - itemData.selling_price))}</span>
+              </div>
+              <div className="flex justify-between py-1 text-gray-600">
+                <span>Delivery Charges</span>
+                <span className="text-green-700 font-semibold"><span className="line-through text-gray-400 font-normal mr-1">₹40</span>FREE</span>
+              </div>
+              <div className="flex justify-between py-2 border-t border-gray-100 font-bold text-gray-900 mt-1 text-[13px]">
+                <span>Total Payable</span>
+                <span className="selling_price text-blue-600">₹{formatINR(itemData.selling_price)}</span>
+              </div>
+              {itemData.mrp > itemData.selling_price && (
+                <div className="mt-2 text-[11px] font-semibold text-green-700 bg-green-50 px-2.5 py-1.5 rounded text-center border border-green-200/60">
+                  🎉 You will save ₹{formatINR(itemData.mrp - itemData.selling_price)} on this order
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex justify-between py-1 text-gray-600">
-          <span>Selling Price</span>
-          <span className="selling_price font-semibold text-gray-900">₹{formatINR(itemData.selling_price)}</span>
-        </div>
-        <div className="flex justify-between py-1 text-green-700">
-          <span>Discount</span>
-          <span className="font-semibold">-₹{formatINR(Math.max(0, itemData.mrp - itemData.selling_price))}</span>
-        </div>
-        <div className="flex justify-between py-1 border-t border-gray-200 font-bold text-gray-900 mt-1">
-          <span>Total Payable</span>
-          <span className="selling_price">₹{formatINR(itemData.selling_price)}</span>
-        </div>
-      </div>
+      </section>
 
       {/* Cashback Banner */}
       <section className="bg-white py-3 border-b border-gray-200 mt-2 shadow-sm">

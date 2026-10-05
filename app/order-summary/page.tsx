@@ -74,7 +74,9 @@ function OrderSummaryPage() {
         }
         setCartProductIds(parsed.map((item: any) => item.id));
         const initialQtys: Record<string, number> = {};
-        parsed.forEach((item: any) => { initialQtys[item.id] = 1; });
+        parsed.forEach((item: any) => { 
+          initialQtys[item.id] = (initialQtys[item.id] || 0) + (item.qty || 1); 
+        });
         setQuantities(initialQtys);
       } else {
         router.push('/');
@@ -182,7 +184,21 @@ function OrderSummaryPage() {
                         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9 }} onClick={(e) => { e.stopPropagation(); setIsQtyDropdownOpen(null); }} />
                         <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, width: "100%", background: "white", zIndex: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e0e0e0", borderRadius: 4, overflow: 'hidden' }}>
                           {[1, 2, 3, 4, 5].map(n => (
-                            <div key={n} style={{ padding: "6px 12px", cursor: "pointer", borderBottom: n !== 5 ? "1px solid #eee" : "none", color: quantities[product.id] === n ? "#2874f0" : "#333", backgroundColor: quantities[product.id] === n ? "#f0f5ff" : "white", fontSize: 13, textAlign: 'center' }} onClick={(e) => { e.stopPropagation(); setQuantities({ ...quantities, [product.id]: n }); setIsQtyDropdownOpen(null); }}>
+                            <div key={n} style={{ padding: "6px 12px", cursor: "pointer", borderBottom: n !== 5 ? "1px solid #eee" : "none", color: quantities[product.id] === n ? "#2874f0" : "#333", backgroundColor: quantities[product.id] === n ? "#f0f5ff" : "white", fontSize: 13, textAlign: 'center' }} onClick={(e) => { 
+                              e.stopPropagation(); 
+                              const newQtys = { ...quantities, [product.id]: n };
+                              setQuantities(newQtys); 
+                              setIsQtyDropdownOpen(null);
+                              try {
+                                sessionStorage.setItem('orderQuantities', JSON.stringify(newQtys));
+                                const savedCart = localStorage.getItem('cart');
+                                if (savedCart) {
+                                  let cartItems = JSON.parse(savedCart);
+                                  cartItems = cartItems.map((item: any) => item.id === product.id ? { ...item, qty: n } : item);
+                                  localStorage.setItem('cart', JSON.stringify(cartItems));
+                                }
+                              } catch {}
+                            }}>
                               {n}
                             </div>
                           ))}
@@ -278,6 +294,9 @@ function OrderSummaryPage() {
         </div>
         <button className="os-continue-btn" onClick={() => {
           sessionStorage.setItem('finalAmount', currentTotal.toString());
+          try {
+            sessionStorage.setItem('orderQuantities', JSON.stringify(quantities));
+          } catch {}
           router.push('/payment' + "?" + new URLSearchParams({ amt: currentTotal.toString() }).toString());
         }}>
           Continue

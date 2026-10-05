@@ -133,12 +133,16 @@ export default function ProductClient() {
       id: product.id,
       title: product.title,
       price: parseInt(product.newPrice.replace(/[^\d]/g, ""), 10),
-      image: product.image
+      image: product.image,
+      qty: 1
     };
     try {
       const existingCartStr = localStorage.getItem("cart");
       let existingCart = existingCartStr ? JSON.parse(existingCartStr) : [];
-      if (!existingCart.find((p: any) => p.id === product.id)) {
+      const existingIndex = existingCart.findIndex((p: any) => p.id === product.id);
+      if (existingIndex >= 0) {
+        existingCart[existingIndex].qty = (existingCart[existingIndex].qty || 1) + 1;
+      } else {
         existingCart.push(cartProduct);
       }
       localStorage.setItem("cart", JSON.stringify(existingCart));
