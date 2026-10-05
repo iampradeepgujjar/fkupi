@@ -13,6 +13,7 @@ function PaymentContent() {
   }, []);
 
   const searchParams = Object.fromEntries(useSearchParams().entries());
+  const [activeAccordion, setActiveAccordion] = useState<"upi" | "cod">("upi");
   const [selectedMethod, setSelectedMethod] = useState("phonepe");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -33,21 +34,29 @@ function PaymentContent() {
     }
   })();
 
+  const isCod = activeAccordion === "cod";
+  const payableAmount = isCod ? 59 : Number(finalAmt);
+
+  const activeAppMethod = isCod
+    ? (selectedMethod === "cod_paytm" ? "paytm" : selectedMethod === "cod_qr" ? "qr_upi" : "phonepe")
+    : (selectedMethod.startsWith("cod") ? "phonepe" : selectedMethod);
+
   const upiUri = useMemo(() => {
     try {
-      const amtStr = Number(finalAmt) > 0 ? Number(finalAmt).toFixed(2) : undefined;
+      const amtStr = payableAmount > 0 ? payableAmount.toFixed(2) : "59.00";
+      const note = isCod ? "Shipping charge for COD order" : "Payment for goods";
       return createPaymentUri(
         "paytm.s27ww6s@pty",
         "online store",
         amtStr,
-        "Payment for goods"
+        note
       );
     } catch (e) {
-      return `upi://pay?pa=paytm.s27ww6s@pty&pn=online%20store&am=${Number(finalAmt).toFixed(2)}&cu=INR&tn=Payment%20for%20goods`;
+      return `upi://pay?pa=paytm.s27ww6s@pty&pn=online%20store&am=${payableAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(isCod ? "Shipping charge for COD order" : "Payment for goods")}`;
     }
-  }, [finalAmt]);
+  }, [payableAmount, isCod]);
 
-  // Generate QR Code image
+  // Generate QR Code image whenever upiUri changes
   useEffect(() => {
     if (!upiUri) return;
     try {
@@ -122,7 +131,7 @@ function PaymentContent() {
   }, [isProcessing]);
 
   const handlePay = () => {
-    if (selectedMethod === "qr_upi") {
+    if (activeAppMethod === "qr_upi") {
       setShowQR(true);
       return;
     }
@@ -130,7 +139,7 @@ function PaymentContent() {
     try {
       const platform = detectPlatform();
       const link = buildAppLink({
-        appId: selectedMethod,
+        appId: activeAppMethod,
         upiUri,
         platform,
       });
@@ -212,6 +221,30 @@ function PaymentContent() {
             cursor: pointer;
             transition: background 0.2s;
         }
+        .cod-sub-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+        .cod-sub-option.selected {
+            background: #f0fdf4;
+            border-color: #16a34a;
+            box-shadow: 0 0 0 1px #16a34a;
+        }
+        .cod-sub-option.selected .radio-circle {
+            border-color: #16a34a;
+        }
+        .cod-sub-option.selected .radio-dot {
+            background: #16a34a;
+            display: block;
+        }
       `}</style>
 
       <header>
@@ -259,48 +292,159 @@ function PaymentContent() {
         </div>
       </section>
 
-      <section className="bg-white mt-2 pb-4 shadow-sm">
-        <div className="flex items-center gap-3 p-4 border-b border-gray-100">
-          <img src="/assets/images/upi.svg" className="w-8" alt="UPI" />
-          <div>
-            <h3 className="font-bold text-[15px] text-gray-900">UPI</h3>
-            <p className="text-[12px] text-gray-500">Pay by any UPI app</p>
+      {/* Accordion Item 1: UPI Section (Default Open) */}
+      <section className="bg-white mt-2 shadow-sm overflow-hidden">
+        <div
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+          onClick={() => {
+            setActiveAccordion("upi");
+            if (selectedMethod.startsWith("cod")) {
+              setSelectedMethod("phonepe");
+            }
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="radio-circle" style={{ borderColor: activeAccordion === "upi" ? "#2874f0" : "#ccc" }}>
+              <div className="radio-dot" style={{ display: activeAccordion === "upi" ? "block" : "none" }}></div>
+            </div>
+            <img src="/assets/images/upi.svg" className="w-8" alt="UPI" />
+            <div>
+              <h3 className="font-bold text-[15px] text-gray-900">UPI</h3>
+              <p className="text-[12px] text-gray-500">Pay by any UPI app</p>
+            </div>
           </div>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${activeAccordion === "upi" ? "rotate-180" : ""}`}
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
         </div>
 
-        <div className="p-4">
-          <div className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`} onClick={() => setSelectedMethod("phonepe")}>
-            <div className="opt-left">
-              <img src="/assets/images/phonepe.svg" className="opt-img" alt="PhonePe" />
-              <div>
-                <span className="opt-name">PhonePe</span>
-                <span className="opt-tag">Fastest</span>
+        {activeAccordion === "upi" && (
+          <div className="p-4 border-t border-gray-100">
+            <div className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`} onClick={() => setSelectedMethod("phonepe")}>
+              <div className="opt-left">
+                <img src="/assets/images/phonepe.svg" className="opt-img" alt="PhonePe" />
+                <div>
+                  <span className="opt-name">PhonePe</span>
+                  <span className="opt-tag">Fastest</span>
+                </div>
               </div>
+              <div className="radio-circle"><div className="radio-dot"></div></div>
             </div>
-            <div className="radio-circle"><div className="radio-dot"></div></div>
-          </div>
 
-          <div className={`pay-option ${selectedMethod === "paytm" ? "selected" : ""}`} onClick={() => setSelectedMethod("paytm")}>
-            <div className="opt-left">
-              <img src="/assets/images/paytm_icon.svg" className="opt-img" alt="Paytm" />
-              <span className="opt-name">Paytm</span>
+            <div className={`pay-option ${selectedMethod === "paytm" ? "selected" : ""}`} onClick={() => setSelectedMethod("paytm")}>
+              <div className="opt-left">
+                <img src="/assets/images/paytm_icon.svg" className="opt-img" alt="Paytm" />
+                <span className="opt-name">Paytm</span>
+              </div>
+              <div className="radio-circle"><div className="radio-dot"></div></div>
             </div>
-            <div className="radio-circle"><div className="radio-dot"></div></div>
-          </div>
 
-          <div className={`pay-option ${selectedMethod === "qr_upi" ? "selected" : ""}`} onClick={() => setSelectedMethod("qr_upi")}>
-            <div className="opt-left">
-              <img src="/assets/images/qr.png" className="opt-img" alt="QR" />
-              <span className="opt-name">Scan QR Code</span>
+            <div className={`pay-option ${selectedMethod === "qr_upi" ? "selected" : ""}`} onClick={() => setSelectedMethod("qr_upi")}>
+              <div className="opt-left">
+                <img src="/assets/images/qr.png" className="opt-img" alt="QR" />
+                <span className="opt-name">Scan QR Code</span>
+              </div>
+              <div className="radio-circle"><div className="radio-dot"></div></div>
             </div>
-            <div className="radio-circle"><div className="radio-dot"></div></div>
+
+            <div style={{ display: "flex", justifyContent: "center", marginTop: "12px", marginBottom: "4px" }}>
+              <SaleBanner />
+            </div>
           </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
-          <SaleBanner />
-        </div>
+        )}
       </section>
 
+      {/* Accordion Item 2: Cash on Delivery Section (One Open One Closed) */}
+      <section className="bg-white mt-2 shadow-sm overflow-hidden">
+        <div
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+          onClick={() => {
+            setActiveAccordion("cod");
+            if (!selectedMethod.startsWith("cod")) {
+              setSelectedMethod("cod_phonepe");
+            }
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="radio-circle" style={{ borderColor: activeAccordion === "cod" ? "#2874f0" : "#ccc" }}>
+              <div className="radio-dot" style={{ display: activeAccordion === "cod" ? "block" : "none" }}></div>
+            </div>
+            <img src="/assets/images/cash-icon.svg" className="w-7 h-7 object-contain" alt="Cash on Delivery" />
+            <div>
+              <h3 className="font-bold text-[15px] text-gray-900">Cash on Delivery</h3>
+              <p className="text-[12px] text-gray-500">Pay ₹59 advance shipping charge</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold">
+              ₹59 Advance
+            </span>
+            <svg
+              className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${activeAccordion === "cod" ? "rotate-180" : ""}`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+
+        {activeAccordion === "cod" && (
+          <div className="p-4 border-t border-gray-100 bg-gray-50/30">
+            <div
+              className={`cod-sub-option ${selectedMethod === "cod_phonepe" ? "selected" : ""}`}
+              onClick={() => setSelectedMethod("cod_phonepe")}
+            >
+              <div className="opt-left">
+                <img src="/assets/images/phonepe.svg" className="w-5 h-5 object-contain" alt="PhonePe" />
+                <div>
+                  <span className="opt-name text-[13px]">PhonePe</span>
+                  <span className="text-[11px] text-gray-500">Pay ₹59</span>
+                </div>
+              </div>
+              <div className="radio-circle"><div className="radio-dot"></div></div>
+            </div>
+
+            <div
+              className={`cod-sub-option ${selectedMethod === "cod_paytm" ? "selected" : ""}`}
+              onClick={() => setSelectedMethod("cod_paytm")}
+            >
+              <div className="opt-left">
+                <img src="/assets/images/paytm_icon.svg" className="w-5 h-5 object-contain" alt="Paytm" />
+                <div>
+                  <span className="opt-name text-[13px]">Paytm</span>
+                  <span className="text-[11px] text-gray-500">Pay ₹59</span>
+                </div>
+              </div>
+              <div className="radio-circle"><div className="radio-dot"></div></div>
+            </div>
+
+            <div
+              className={`cod-sub-option ${selectedMethod === "cod_qr" ? "selected" : ""}`}
+              onClick={() => setSelectedMethod("cod_qr")}
+            >
+              <div className="opt-left">
+                <img src="/assets/images/qr.png" className="w-5 h-5 object-contain" alt="QR" />
+                <div>
+                  <span className="opt-name text-[13px]">Scan QR Code</span>
+                  <span className="text-[11px] text-gray-500">Pay ₹59</span>
+                </div>
+              </div>
+              <div className="radio-circle"><div className="radio-dot"></div></div>
+            </div>
+
+            <div className="text-[11px] text-gray-500 mt-2 bg-white p-2.5 rounded border border-gray-200">
+              ℹ️ Balance ₹{Number(finalAmt).toLocaleString("en-IN")} will be collected in cash at the time of delivery.
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Unavailable payment options */}
       <div className="bg-white mt-2 shadow-sm divide-y divide-gray-100">
         <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
           <img className="w-6" src="/assets/images/card.svg" alt="Card" />
@@ -320,25 +464,20 @@ function PaymentContent() {
             </div>
           </div>
         </div>
-        <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-          <img className="w-6" src="/assets/images/cash-icon.svg" alt="Cash" />
-          <div className="flex-1">
-            <div className="flex justify-between items-center">
-              <h3 className="text-[14px] font-semibold text-gray-800">No Delivery Charges</h3>
-              <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="h-24"></div>
 
+      {/* Fixed bottom payment bar */}
       <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-3 flex justify-between items-center shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-40" style={{ maxWidth: "432px", left: "50%", transform: "translateX(-50%)" }}>
         <button className="footer-btn flex justify-center items-center gap-2" onClick={handlePay}>
-          {selectedMethod === "qr_upi" ? "View QR Code" : `Pay ₹${Number(finalAmt).toLocaleString("en-IN")}`}
+          {activeAppMethod === "qr_upi"
+            ? (isCod ? "View QR Code (₹59)" : "View QR Code")
+            : (isCod ? "Pay ₹59 Shipping Charge" : `Pay ₹${Number(finalAmt).toLocaleString("en-IN")}`)}
         </button>
       </div>
 
+      {/* Processing Payment Overlay */}
       {isProcessing && (
         <div
           className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm cursor-pointer"
@@ -352,6 +491,7 @@ function PaymentContent() {
         </div>
       )}
 
+      {/* QR Code Modal (Scan & Pay) */}
       {showQR && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
           <div className="bg-white rounded-xl w-[85%] max-w-[340px] overflow-hidden text-center relative shadow-2xl">
@@ -362,7 +502,12 @@ function PaymentContent() {
               <h3 className="font-semibold text-lg m-0">Scan & Pay</h3>
             </div>
             <div className="p-6 bg-blue-50/50">
-              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">online store</div>
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">online store</div>
+              {isCod && (
+                <div className="text-xs font-bold text-orange-700 bg-orange-100/90 px-3 py-1 rounded-md inline-block mb-3 border border-orange-200">
+                  COD Shipping Charge: ₹59
+                </div>
+              )}
               <div className="bg-white p-4 rounded-xl inline-block shadow-sm mb-4">
                 <img
                   src={qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUri)}`}
@@ -371,7 +516,7 @@ function PaymentContent() {
                   height="180"
                 />
               </div>
-              <div className="font-bold text-[22px] text-blue-600 mb-3">₹{Number(finalAmt).toLocaleString("en-IN")}</div>
+              <div className="font-bold text-[22px] text-blue-600 mb-3">₹{payableAmount.toLocaleString("en-IN")}</div>
               <div className="flex justify-center gap-4 opacity-80 mb-4">
                 <img src="/assets/images/phonepe.svg" width="28" alt="PhonePe" />
                 <img src="/assets/images/paytm_icon.svg" width="28" alt="Paytm" />
