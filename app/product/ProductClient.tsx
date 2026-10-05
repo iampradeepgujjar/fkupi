@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useSearchParams , useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
@@ -270,7 +270,7 @@ export default function ProductClient() {
 
         <section className="pdp-assurance">
           <div><RefreshCw size={32} color="#2874f0" /><span>7 Days Replacement</span></div>
-          <div><Banknote size={32} color="#2874f0" /><span>Cash on Delivery</span></div>
+          <div><Banknote size={32} color="#2874f0" /><span>No Delivery Charges</span></div>
           <div><img src="/assets/f-assured.png" alt="Flipkart Assured" style={{ height: "20px" }} /><span>Flipkart Assured</span></div>
         </section>
 

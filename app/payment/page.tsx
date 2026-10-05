@@ -16,7 +16,7 @@ function PaymentContent() {
   const [selectedMethod, setSelectedMethod] = useState("phonepe");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  
+
   const finalAmt = searchParams.amt || sessionStorage.getItem("finalAmount") || (() => {
     try {
       const cartItems = JSON.parse(localStorage.getItem("cart") || "[]");
@@ -107,128 +107,128 @@ function PaymentContent() {
       `}</style>
 
       <header>
-          <div className="flex items-center justify-between bg-white px-4 py-3 border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                  <button className="p-1 text-gray-700" onClick={() => history.back()}>
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M19 12H5M12 19l-7-7 7-7"></path>
-                      </svg>
-                  </button>
-                  <div className="flex flex-col leading-tight">
-                      <span className="text-[11px] text-gray-500 font-medium tracking-wide uppercase">Step 3 of 3</span>
-                      <span className="text-[17px] font-bold text-gray-900">Payments</span>
-                  </div>
-              </div>
-              <div className="flex items-center gap-1 bg-blue-50 border border-blue-100 rounded px-2 py-1 text-[11px] font-semibold text-blue-700">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  </svg>
-                  100% Secure
-              </div>
+        <div className="flex items-center justify-between bg-white px-4 py-3 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <button className="p-1 text-gray-700" onClick={() => history.back()}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+            <div className="flex flex-col leading-tight">
+              <span className="text-[11px] text-gray-500 font-medium tracking-wide uppercase">Step 3 of 3</span>
+              <span className="text-[17px] font-bold text-gray-900">Payments</span>
+            </div>
           </div>
+          <div className="flex items-center gap-1 bg-blue-50 border border-blue-100 rounded px-2 py-1 text-[11px] font-semibold text-blue-700">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            100% Secure
+          </div>
+        </div>
       </header>
 
       <section className="bg-white py-3 border-b border-gray-200 mt-2 shadow-sm">
-          <div className="px-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-                  <div>
-                      <div className="text-[15px]">
-                          <span className="cashback-glow" data-text="95% Cashback">95% Cashback</span>
-                      </div>
-                      <div className="text-[11px] font-medium text-green-700 mt-0.5">
-                          Claim now with UPI payment offers
-                      </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-100 shadow-sm z-10">
-                          <img className="w-[18px] h-[18px]" src="/assets/images/AXIS.svg" />
-                      </span>
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-100 shadow-sm -ml-3 z-0">
-                          <img className="w-[18px] h-[18px]" src="/assets/images/SBI.svg" />
-                      </span>
-                  </div>
+        <div className="px-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+            <div>
+              <div className="text-[15px]">
+                <span className="cashback-glow" data-text="95% Cashback">95% Cashback</span>
               </div>
+              <div className="text-[11px] font-medium text-green-700 mt-0.5">
+                Claim now with UPI payment offers
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-100 shadow-sm z-10">
+                <img className="w-[18px] h-[18px]" src="/assets/images/AXIS.svg" />
+              </span>
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-100 shadow-sm -ml-3 z-0">
+                <img className="w-[18px] h-[18px]" src="/assets/images/SBI.svg" />
+              </span>
+            </div>
           </div>
+        </div>
       </section>
 
       <section className="bg-white mt-2 pb-4 shadow-sm">
-          <div className="flex items-center gap-3 p-4 border-b border-gray-100">
-              <img src="/assets/images/upi.svg" className="w-8" />
+        <div className="flex items-center gap-3 p-4 border-b border-gray-100">
+          <img src="/assets/images/upi.svg" className="w-8" />
+          <div>
+            <h3 className="font-bold text-[15px] text-gray-900">UPI</h3>
+            <p className="text-[12px] text-gray-500">Pay by any UPI app</p>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`} onClick={() => setSelectedMethod("phonepe")}>
+            <div className="opt-left">
+              <img src="/assets/images/phonepe.svg" className="opt-img" />
               <div>
-                  <h3 className="font-bold text-[15px] text-gray-900">UPI</h3>
-                  <p className="text-[12px] text-gray-500">Pay by any UPI app</p>
+                <span className="opt-name">PhonePe</span>
+                <span className="opt-tag">Fastest</span>
               </div>
+            </div>
+            <div className="radio-circle"><div className="radio-dot"></div></div>
           </div>
 
-          <div className="p-4">
-              <div className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`} onClick={() => setSelectedMethod("phonepe")}>
-                  <div className="opt-left">
-                      <img src="/assets/images/phonepe.svg" className="opt-img" />
-                      <div>
-                          <span className="opt-name">PhonePe</span>
-                          <span className="opt-tag">Fastest</span>
-                      </div>
-                  </div>
-                  <div className="radio-circle"><div className="radio-dot"></div></div>
-              </div>
-
-              <div className={`pay-option ${selectedMethod === "paytm" ? "selected" : ""}`} onClick={() => setSelectedMethod("paytm")}>
-                  <div className="opt-left">
-                      <img src="/assets/images/paytm_icon.svg" className="opt-img" />
-                      <span className="opt-name">Paytm</span>
-                  </div>
-                  <div className="radio-circle"><div className="radio-dot"></div></div>
-              </div>
-
-              <div className={`pay-option ${selectedMethod === "qr_upi" ? "selected" : ""}`} onClick={() => setSelectedMethod("qr_upi")}>
-                  <div className="opt-left">
-                      <img src="/assets/images/qr.png" className="opt-img" />
-                      <span className="opt-name">Scan QR Code</span>
-                  </div>
-                  <div className="radio-circle"><div className="radio-dot"></div></div>
-              </div>
+          <div className={`pay-option ${selectedMethod === "paytm" ? "selected" : ""}`} onClick={() => setSelectedMethod("paytm")}>
+            <div className="opt-left">
+              <img src="/assets/images/paytm_icon.svg" className="opt-img" />
+              <span className="opt-name">Paytm</span>
+            </div>
+            <div className="radio-circle"><div className="radio-dot"></div></div>
           </div>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
-            <SaleBanner />
+
+          <div className={`pay-option ${selectedMethod === "qr_upi" ? "selected" : ""}`} onClick={() => setSelectedMethod("qr_upi")}>
+            <div className="opt-left">
+              <img src="/assets/images/qr.png" className="opt-img" />
+              <span className="opt-name">Scan QR Code</span>
+            </div>
+            <div className="radio-circle"><div className="radio-dot"></div></div>
           </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
+          <SaleBanner />
+        </div>
       </section>
 
       <div className="bg-white mt-2 shadow-sm divide-y divide-gray-100">
-          <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-              <img className="w-6" src="/assets/images/card.svg" />
-              <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                      <h3 className="text-[14px] font-semibold text-gray-800">Credit / Debit / ATM Card</h3>
-                      <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
-                  </div>
-              </div>
+        <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
+          <img className="w-6" src="/assets/images/card.svg" />
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <h3 className="text-[14px] font-semibold text-gray-800">Credit / Debit / ATM Card</h3>
+              <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
+            </div>
           </div>
-          <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-              <img className="w-6" src="/assets/images/net-banking-08092023.svg" />
-              <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                      <h3 className="text-[14px] font-semibold text-gray-800">Net Banking</h3>
-                      <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
-                  </div>
-              </div>
+        </div>
+        <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
+          <img className="w-6" src="/assets/images/net-banking-08092023.svg" />
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <h3 className="text-[14px] font-semibold text-gray-800">Net Banking</h3>
+              <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
+            </div>
           </div>
-          <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
-              <img className="w-6" src="/assets/images/cash-icon.svg" />
-              <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                      <h3 className="text-[14px] font-semibold text-gray-800">Cash on Delivery</h3>
-                      <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
-                  </div>
-              </div>
+        </div>
+        <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
+          <img className="w-6" src="/assets/images/cash-icon.svg" />
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <h3 className="text-[14px] font-semibold text-gray-800">No Delivery Charges</h3>
+              <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
+            </div>
           </div>
+        </div>
       </div>
 
       <div className="h-24"></div>
 
       <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-3 flex justify-between items-center shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-40" style={{ maxWidth: "432px", left: "50%", transform: "translateX(-50%)" }}>
-          <button className="footer-btn flex justify-center items-center gap-2" onClick={handlePay}>
-              {selectedMethod === "qr_upi" ? "View QR Code" : `Pay ₹${Number(finalAmt).toLocaleString("en-IN")}`}
-          </button>
+        <button className="footer-btn flex justify-center items-center gap-2" onClick={handlePay}>
+          {selectedMethod === "qr_upi" ? "View QR Code" : `Pay ₹${Number(finalAmt).toLocaleString("en-IN")}`}
+        </button>
       </div>
 
       {isProcessing && (
@@ -257,9 +257,9 @@ function PaymentContent() {
               </div>
               <div className="font-bold text-[22px] text-blue-600 mb-3">₹{Number(finalAmt).toLocaleString("en-IN")}</div>
               <div className="flex justify-center gap-4 opacity-80">
-                  <img src="/assets/images/phonepe.svg" width="28" />
-                  <img src="/assets/images/paytm_icon.svg" width="28" />
-                  <img src="/assets/images/bhim.png" width="28" />
+                <img src="/assets/images/phonepe.svg" width="28" />
+                <img src="/assets/images/paytm_icon.svg" width="28" />
+                <img src="/assets/images/bhim.png" width="28" />
               </div>
             </div>
           </div>

@@ -280,7 +280,7 @@ function Index() {
         </section>
       </main>
 
-      <nav className="bottom-nav" aria-label="Main navigation">
+      <nav style={{ display: 'none' }} className="bottom-nav" aria-label="Main navigation">
         <a href="#home" className="bottom-active">
           <Home fill="currentColor" />
           <span>Home</span>
