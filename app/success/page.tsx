@@ -20,7 +20,7 @@ function SuccessPage() {
   useEffect(() => {
     document.title = "Success";
     try {
-      const savedAddr = sessionStorage.getItem("savedAddress");
+      const savedAddr = sessionStorage.getItem("savedAddress") || localStorage.getItem("savedAddress");
       if (savedAddr) setAddress(JSON.parse(savedAddr));
     } catch (e) {}
 
@@ -205,6 +205,7 @@ function SuccessPage() {
         }
         .s2-date-bold { font-size: 15px; font-weight: 700; color: #212121; margin-bottom: 14px; }
         .s2-name { font-size: 15px; font-weight: 700; color: #212121; margin-bottom: 4px; line-height: 1.5; }
+        .tag-badge { display: inline-block; font-size: 10px; font-weight: 700; color: #878787; border: 1px solid #d4d5d9; border-radius: 2px; padding: 1px 5px; margin-left: 6px; letter-spacing: 0.04em; vertical-align: middle; }
         
         /* OTP Box */
         .otp-box {
@@ -322,25 +323,51 @@ function SuccessPage() {
         </div>
 
         <div className="s2-delivery-card">
-          <div className="s2-date-bold">Delivery by {dateString}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div className="s2-date-bold" style={{ margin: 0 }}>Delivery by {dateString}</div>
+            <span style={{ fontSize: 12, color: '#388e3c', fontWeight: 600, background: '#e8f5e9', padding: '2px 8px', borderRadius: 4 }}>Confirmed</span>
+          </div>
           <div className="divider"></div>
           <div className="s2-name" id="s2-name">
+            <div style={{ fontSize: 13, color: '#878787', fontWeight: 500, marginBottom: 6 }}>
+              Deliver to:
+            </div>
             <div dir="auto" className="css-146c3p1 r-1et8rh5 r-1b43r93 r-knv0ih" style={{ color: "rgb(17,17,18)", fontWeight: "normal" }}>
               {address ? (
-                <>
-                  {address.name && <strong>{address.name}<br/></strong>}
-                  {address.address}<br/>
-                  {address.locality && <>{address.locality}<br/></>}
-                  {address.city ? `${address.city}, ${address.state} - ${address.pincode}` : ""}<br/>
-                  {address.phone && <><strong>Phone:</strong> {address.phone}</>}
-                </>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#212121', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                    <span>{address.name || 'User'}</span>
+                    <span className="tag-badge">{address.tag || 'HOME'}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#565656', lineHeight: 1.5, marginTop: 4 }}>
+                    {[
+                      address.address,
+                      address.locality,
+                      address.landmark ? `Near ${address.landmark}` : '',
+                      address.city ? `${address.city}, ${address.state} - ${address.pincode}` : (address.state || address.pincode ? `${address.state || ''} ${address.pincode || ''}` : '')
+                    ].filter(Boolean).join(', ')}
+                  </div>
+                  {(address.phone || address.altPhone) && (
+                    <div style={{ fontSize: 13, color: '#212121', marginTop: 6, fontWeight: 500 }}>
+                      <span style={{ color: '#878787' }}>Phone: </span>
+                      {address.phone}
+                      {address.altPhone ? `, ${address.altPhone}` : ''}
+                    </div>
+                  )}
+                </div>
               ) : (
-                <>
-                  <strong>{address?.name || "User"}</strong><br/>
-                  123 Main Street<br/>
-                  Mumbai, Maharashtra - 400001<br/>
-                  <strong>Phone:</strong> 9876543210
-                </>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#212121', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>User</span>
+                    <span className="tag-badge">HOME</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#565656', lineHeight: 1.5, marginTop: 4 }}>
+                    123 Main Street, Mumbai, Maharashtra - 400001
+                  </div>
+                  <div style={{ fontSize: 13, color: '#212121', marginTop: 6, fontWeight: 500 }}>
+                    <span style={{ color: '#878787' }}>Phone: </span>9876543210
+                  </div>
+                </div>
               )}
             </div>
           </div>
