@@ -20,6 +20,33 @@ function getOrigin(request: Request): string {
   }
 }
 
+const INDIAN_NAMES = [
+  'Aarav Sharma',
+  'Aditya Verma',
+  'Amit Patel',
+  'Ananya Iyer',
+  'Aniket Singh',
+  'Deepak Gupta',
+  'Kavita Nair',
+  'Manish Kumar',
+  'Neha Sharma',
+  'Pooja Reddy',
+  'Priya Joshi',
+  'Rahul Mehta',
+  'Rohan Das',
+  'Rohit Chauhan',
+  'Sanjay Yadav',
+  'Shreya Mishra',
+  'Sneha Kulkarni',
+  'Suresh Pillai',
+  'Vikas Malhotra',
+  'Vivek Choudhary',
+];
+
+function getRandomIndianName(): string {
+  return INDIAN_NAMES[Math.floor(Math.random() * INDIAN_NAMES.length)];
+}
+
 export async function POST(request: Request) {
   const origin = getOrigin(request);
 
@@ -40,15 +67,20 @@ export async function POST(request: Request) {
     const rawPhone = (addressData?.phone || mobileNumber || '').toString().replace(/\D/g, '');
     const phone = rawPhone.length >= 10 ? rawPhone.slice(-10) : '9876543210';
 
+    const rawCustomerName = (addressData?.name || '').trim();
+    const customerName = (!rawCustomerName || rawCustomerName.toLowerCase() === 'user')
+      ? getRandomIndianName()
+      : rawCustomerName;
+
     // Call Cashfree API
     const cashfreePayload = {
       order_amount: parseFloat(amount) || 1,
       order_currency: "INR",
       order_id: orderId,
       customer_details: {
-        customer_id: "cust_" + Math.random().toString(36).substr(2, 9),
+        customer_id: "cust_" + Math.random().toString(36).substring(2, 11),
         customer_phone: phone,
-        customer_name: addressData?.name || "User"
+        customer_name: customerName
       },
       order_meta: {
         // We will verify the payment or show success on this page

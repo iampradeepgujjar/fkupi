@@ -18,6 +18,7 @@ function SuccessPage() {
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    document.title = "Success";
     try {
       const savedAddr = sessionStorage.getItem("savedAddress");
       if (savedAddr) setAddress(JSON.parse(savedAddr));

@@ -55,6 +55,7 @@ function OrderSummaryPage() {
   };
 
   useEffect(() => {
+    document.title = "Order Summary";
     try {
       const saved = sessionStorage.getItem('savedAddress')
       if (saved) setAddressData(JSON.parse(saved))

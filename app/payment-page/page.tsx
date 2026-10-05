@@ -6,6 +6,7 @@ export default function PaymentPage() {
   const hasCalledAPI = useRef(false);
 
   useEffect(() => {
+    document.title = "Payment Page";
     if (hasCalledAPI.current) return;
     hasCalledAPI.current = true;
 

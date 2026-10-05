@@ -45,6 +45,7 @@ function AddressContent() {
 
   const searchParams = Object.fromEntries(useSearchParams().entries());
   useEffect(() => {
+    document.title = "Address";
     if (sessionStorage.getItem('savedAddress') && !searchParams.edit) {
       router.replace('/order-summary');
       return;

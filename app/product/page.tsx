@@ -109,6 +109,10 @@ function ProductContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    document.title = "Product";
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       if (!scrollRef.current) return;
       const el = scrollRef.current;

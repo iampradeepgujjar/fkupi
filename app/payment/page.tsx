@@ -2,13 +2,16 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 
 
-import { useState, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { SaleBanner } from "../../components/SaleBanner"
 
 
 
 function PaymentContent() {
   const router = useRouter();
+  useEffect(() => {
+    document.title = "Payment";
+  }, []);
   const searchParams = Object.fromEntries(useSearchParams().entries());
   const [selectedMethod, setSelectedMethod] = useState("phonepe");
   const [isProcessing, setIsProcessing] = useState(false);

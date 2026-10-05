@@ -50,6 +50,10 @@ function Index() {
   const [touchStart, setTouchStart] = useState<number | null>(null);
 
   useEffect(() => {
+    document.title = "Online shopping";
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       setActiveSlide((current) => (current + 1) % slides.length);
     }, 3000);
