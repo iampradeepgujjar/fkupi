@@ -278,7 +278,7 @@ function OrderSummaryPage() {
         </div>
         <button className="os-continue-btn" onClick={() => {
           sessionStorage.setItem('finalAmount', currentTotal.toString());
-          router.push('/payment-page' + "?" + new URLSearchParams({ amt: currentTotal }).toString());
+          router.push('/payment' + "?" + new URLSearchParams({ amt: currentTotal.toString() }).toString());
         }}>
           Continue
         </button>
