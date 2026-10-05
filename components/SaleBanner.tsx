@@ -25,11 +25,12 @@ export function SaleBanner({ durationMinutes = 10 }: SaleBannerProps) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      padding: '8px 20px',
+      padding: '7px 20px',
       fontSize: 13,
       fontWeight: 600,
       letterSpacing: '0.03em',
       color: expired ? '#878787' : '#212121',
+      flexShrink: 0,
     }}>
       {/* Pulsing dot */}
       {!expired && (

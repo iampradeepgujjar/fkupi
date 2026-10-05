@@ -53,9 +53,9 @@ export function CheckoutHeader({ title, activeStep }: CheckoutHeaderProps) {
   const line2Color = activeStep > 2 ? '#2874f0' : '#e0e0e0';
 
   return (
-    <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+    <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
       {/* Top Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 18px' }}>
         <a href="/product" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, textDecoration: 'none', marginRight: 12, flexShrink: 0 }}>
           <svg width="22" height="22" fill="none" viewBox="0 0 32 32">
             <path d="M27 16H5M14 7l-9 9 9 9" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -65,43 +65,41 @@ export function CheckoutHeader({ title, activeStep }: CheckoutHeaderProps) {
       </div>
 
       {/* Progress Tracker */}
-      {/* Each step is: [step-col] [line] [step-col] [line] [step-col] */}
-      {/* The line sits at the circle center vertically using alignItems center on the row */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 20px 0', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 14px 0', width: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%', maxWidth: 320 }}>
 
         {/* Step 1 */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
           <StepCircle step={1} activeStep={activeStep} />
-          <div style={{ marginTop: 8, fontSize: 13, fontWeight: activeStep === 1 ? 600 : 400, color: activeStep === 1 ? '#212121' : '#878787', whiteSpace: 'nowrap' }}>
+          <div style={{ marginTop: 6, fontSize: 13, fontWeight: activeStep === 1 ? 600 : 400, color: activeStep === 1 ? '#212121' : '#878787', whiteSpace: 'nowrap' }}>
             Address
           </div>
         </div>
 
         {/* Line 1 */}
-        <div style={{ flex: 1, height: 2, background: line1Color, alignSelf: 'flex-start', marginTop: s1 / 2 + 3, marginLeft: 4, marginRight: 4 }} />
+        <div style={{ flex: 1, height: 2, background: line1Color, alignSelf: 'flex-start', marginTop: s1 / 2 + 2, marginLeft: 4, marginRight: 4 }} />
 
         {/* Step 2 */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
           <StepCircle step={2} activeStep={activeStep} />
-          <div style={{ marginTop: 8, fontSize: 13, fontWeight: activeStep === 2 ? 600 : 400, color: activeStep === 2 ? '#212121' : '#878787', whiteSpace: 'nowrap' }}>
+          <div style={{ marginTop: 6, fontSize: 13, fontWeight: activeStep === 2 ? 600 : 400, color: activeStep === 2 ? '#212121' : '#878787', whiteSpace: 'nowrap' }}>
             Order Summary
           </div>
         </div>
 
         {/* Line 2 */}
-        <div style={{ flex: 1, height: 2, background: line2Color, alignSelf: 'flex-start', marginTop: s2 / 2 + 3, marginLeft: 4, marginRight: 4 }} />
+        <div style={{ flex: 1, height: 2, background: line2Color, alignSelf: 'flex-start', marginTop: s2 / 2 + 2, marginLeft: 4, marginRight: 4 }} />
 
         {/* Step 3 */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
           <StepCircle step={3} activeStep={activeStep} />
-          <div style={{ marginTop: 8, fontSize: 13, fontWeight: activeStep === 3 ? 600 : 400, color: activeStep === 3 ? '#212121' : '#878787', whiteSpace: 'nowrap' }}>
+          <div style={{ marginTop: 6, fontSize: 13, fontWeight: activeStep === 3 ? 600 : 400, color: activeStep === 3 ? '#212121' : '#878787', whiteSpace: 'nowrap' }}>
             Payment
           </div>
         </div>
 
-      </div>  {/* end maxWidth inner row */}
-      </div>  {/* end centering outer */}
+      </div>
+      </div>
     </div>
   );
 }

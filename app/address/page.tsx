@@ -1,5 +1,5 @@
 "use client";
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 
 import { useEffect, useState, Suspense } from 'react'
@@ -22,22 +22,74 @@ function AddressContent() {
     } catch { return {}; }
   });
   const [selectedState, setSelectedState] = useState(initialData.state || "Uttar Pradesh");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
+
+    const name = (data.get('name') as string || '').trim();
+    const phone = (data.get('phone') as string || '').trim();
+    const pincode = (data.get('pincode') as string || '').trim();
+    const locality = (data.get('locality') as string || '').trim();
+    const address = (data.get('address') as string || '').trim();
+    const city = (data.get('city') as string || '').trim();
+    const landmark = (data.get('landmark') as string || '').trim();
+    const altPhone = (data.get('altPhone') as string || '').trim();
+    const tag = (data.get('locationTypeTag') as string || 'HOME');
+
+    const newErrors: Record<string, string> = {};
+
+    if (!name) {
+      newErrors.name = "Name is required";
+    }
+
+    if (!phone) {
+      newErrors.phone = "Phone is required";
+    } else if (!/^\d{10}$/.test(phone)) {
+      newErrors.phone = "Must be 10 digits";
+    }
+
+    if (!pincode) {
+      newErrors.pincode = "Pincode is required";
+    } else if (!/^\d{6}$/.test(pincode)) {
+      newErrors.pincode = "Must be 6 digits";
+    }
+
+    if (!address) {
+      newErrors.address = "Address is required";
+    }
+
+    if (!city) {
+      newErrors.city = "City is required";
+    }
+
+    if (altPhone && !/^\d{10}$/.test(altPhone)) {
+      newErrors.altPhone = "Must be 10 digits";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const firstKey = Object.keys(newErrors)[0];
+      const el = form.querySelector(`[name="${firstKey}"]`) as HTMLElement;
+      if (el) el.focus();
+      return;
+    }
+
+    setErrors({});
+
     const saved = {
-      name: data.get('name') as string || 'User',
-      tag: data.get('locationTypeTag') as string || 'HOME',
-      address: data.get('address') as string || '',
-      city: data.get('city') as string || '',
+      name,
+      tag,
+      address,
+      city,
       state: selectedState,
-      pincode: data.get('pincode') as string || '',
-      locality: data.get('locality') as string || '',
-      landmark: data.get('landmark') as string || '',
-      altPhone: data.get('altPhone') as string || '',
-      phone: data.get('phone') as string || '',
+      pincode,
+      locality,
+      landmark,
+      altPhone,
+      phone,
     };
     const savedString = JSON.stringify(saved);
     try {
@@ -47,17 +99,32 @@ function AddressContent() {
     router.push('/order-summary');
   }
 
-  const searchParams = Object.fromEntries(useSearchParams().entries());
   useEffect(() => {
     document.title = "Address";
-    const existing = sessionStorage.getItem('savedAddress') || localStorage.getItem('savedAddress');
-    if (existing && !searchParams.edit) {
-      try {
+    try {
+      const existing = sessionStorage.getItem('savedAddress') || localStorage.getItem('savedAddress');
+      if (existing) {
         sessionStorage.setItem('savedAddress', existing);
-      } catch (err) {}
-      router.replace('/order-summary');
-      return;
-    }
+        const parsed = JSON.parse(existing);
+        if (parsed.state) setSelectedState(parsed.state);
+
+        const form = document.getElementById('addressform') as HTMLFormElement | null;
+        if (form) {
+          const fields = ['name', 'phone', 'pincode', 'locality', 'address', 'city', 'landmark', 'altPhone'];
+          fields.forEach(field => {
+            const input = form.querySelector(`[name="${field}"]`) as HTMLInputElement | HTMLTextAreaElement | null;
+            if (input && parsed[field] !== undefined && parsed[field] !== null && parsed[field] !== '') {
+              input.value = parsed[field];
+              input.closest('._3xNCye')?.classList.add('has-value');
+            }
+          });
+          if (parsed.tag) {
+            const radio = form.querySelector(`input[name="locationTypeTag"][value="${parsed.tag}"]`) as HTMLInputElement | null;
+            if (radio) radio.checked = true;
+          }
+        }
+      }
+    } catch (err) {}
 
     const inputs = document.querySelectorAll("input[type='text'], input[type='tel'], input[type='number'], textarea, select") as NodeListOf<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
 
@@ -86,19 +153,77 @@ function AddressContent() {
   }, []);
 
   return (
-    <div className="store-shell" style={{ overflow: "auto" }}>
+    <div className="store-shell" style={{ height: "100%", maxHeight: "100dvh", paddingBottom: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
       <style>{`
         /* Inheriting global body styles for fonts and background */
         *{cursor:pointer;-webkit-tap-highlight-color:transparent; box-sizing: border-box;}
         *:not(input):not(textarea):not(button){-webkit-touch-callout: none;-webkit-user-select: none;-moz-user-select: none;user-select: none;}
         
-        #fk-cp-checkout { width: 100%; background: #fff; min-height: 100vh; }
+        html, body {
+          height: 100% !important;
+          height: 100vh !important;
+          height: 100dvh !important;
+          max-height: 100dvh !important;
+          overflow: hidden !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        .store-shell {
+          width: min(100%, 432px);
+          height: 100% !important;
+          height: 100vh !important;
+          height: 100dvh !important;
+          max-height: 100dvh !important;
+          min-height: unset !important;
+          margin: 0 auto;
+          padding-bottom: 0 !important;
+          background: #fff;
+          overflow: hidden !important;
+          display: flex !important;
+          flex-direction: column !important;
+        }
+
+        #fk-cp-checkout {
+          width: 100%;
+          height: 100%;
+          max-height: 100%;
+          background: #fff;
+          min-height: unset !important;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          overflow: hidden;
+        }
+
         .RcJR_D { font-size: 16px; font-weight: 500; margin-left: 16px; color: #000;}
         
-        ._3YEz5Y { padding: 16px 20px; }
+        ._3YEz5Y {
+          padding: 12px 18px 14px;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow-y: auto;
+          scrollbar-width: none;
+        }
+        ._3YEz5Y::-webkit-scrollbar {
+          display: none;
+        }
+
+        ._1HKanm {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          justify-content: space-between;
+        }
         
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+        .form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
         .full-width { grid-column: span 2; }
         
         ._3xNCye { position: relative; }
@@ -108,76 +233,179 @@ function AddressContent() {
             color: #878787;
             font-size: 14px;
             position: absolute;
-            top: 16px;
+            top: 14px;
             left: 14px;
             margin: 0;
             padding: 0;
             transform-origin: left top;
+            z-index: 1;
         }
-        ._3xNCye input, ._3xNCye textarea, ._2Ck2Ek {
+        ._3xNCye input, ._2Ck2Ek {
             width: 100%;
+            height: 48px;
             background: #fff;
             border: 1px solid #d4d5d9;
             border-radius: 4px;
             outline: none !important;
             font-size: 14px;
-            padding: 22px 14px 10px 14px !important;
+            padding: 18px 14px 6px 14px !important;
             box-shadow: none !important;
             color: #212121;
         }
-        ._3xNCye textarea { resize: none; height: 100px; }
+        ._3xNCye textarea {
+            width: 100%;
+            height: 68px;
+            background: #fff;
+            border: 1px solid #d4d5d9;
+            border-radius: 4px;
+            outline: none !important;
+            font-size: 14px;
+            padding: 18px 14px 6px 14px !important;
+            box-shadow: none !important;
+            color: #212121;
+            resize: none;
+        }
         ._3xNCye.has-value label, ._3xNCye.is-focused label {
-            transform: translateY(-8px) scale(0.8);
+            transform: translateY(-8px) scale(0.78);
         }
         ._3xNCye.is-focused label { color: #2874f0; }
         ._3xNCye input:focus, ._3xNCye textarea:focus { border: 1px solid #2874f0; }
         ._3xNCye.is-focused ._2Ck2Ek { border: 1px solid #2874f0; }
+
+        ._3xNCye.has-error input,
+        ._3xNCye.has-error textarea,
+        ._3xNCye.has-error ._2Ck2Ek {
+            border: 1px solid #d32f2f !important;
+            background: #fffafa;
+        }
+        ._3xNCye.has-error label {
+            color: #d32f2f !important;
+        }
+        .field-error {
+            font-size: 11px;
+            color: #d32f2f;
+            font-weight: 500;
+            margin-top: 2px;
+            padding-left: 2px;
+            line-height: 1.1;
+        }
         
-        .address-type-label { font-size: 12px; color: #878787; margin-bottom: 12px; font-weight: 500; }
-        .radio-group { display: flex; gap: 24px; margin-bottom: 32px; }
+        .address-type-label { font-size: 12px; color: #878787; margin-bottom: 6px; font-weight: 500; }
+        .radio-group { display: flex; gap: 24px; margin-bottom: 14px; }
         .radio-label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #212121; cursor: pointer; }
         .radio-label input[type="radio"] { width: 18px; height: 18px; cursor: pointer; accent-color: #2874f0; margin: 0; }
         
-        .form-actions { display: flex; gap: 24px; align-items: center; width: 100%; }
-        .btn-save { width: 100%; height: 46px; border-radius: 15px; font-size: 14.5px; font-weight: 700; cursor: pointer; border: none; background: #fbcd1e; color: #111; }
-        .btn-save:hover { background: #f9f9f9; }
+        .form-actions { display: flex; gap: 24px; align-items: center; width: 100%; margin-top: auto; padding-top: 4px; }
+        .btn-save { width: 100%; height: 46px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; border: none; background: #fbcd1e; color: #111; }
+        .btn-save:hover { background: #f3c316; }
       `}</style>
       
       <div id="fk-cp-checkout">
-        <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-            <div className="_21I5uf"><span className="_2aCGoL"></span></div>
-            <div style={{ width: "100%" }}>
+        <div style={{ display: "flex", justifyContent: "center", width: "100%", height: "100%", flex: 1, flexDirection: "column" }}>
+            <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
                 <CheckoutHeader title="Add delivery address" activeStep={1} />
-                <div style={{ width: "100%" }}>
+                <div style={{ width: "100%", display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
                     <div>
                           <SaleBanner />
-                        </div>
+                    </div>
                     <div className="_3YEz5Y">
-                        <form className="_1HKanm" method="post" id="addressform" onSubmit={handleSave}>
+                        <form className="_1HKanm" method="post" id="addressform" onSubmit={handleSave} noValidate>
                             <div className="form-grid">
-                                <div className="_3xNCye">
-                                    <label htmlFor="name">Name</label>
-                                    <input id="name" name="name" type="text" defaultValue={initialData.name || ""} />
+                                <div className={`_3xNCye ${errors.name ? 'has-error' : ''}`}>
+                                    <label htmlFor="name">Name *</label>
+                                    <input
+                                      id="name"
+                                      name="name"
+                                      type="text"
+                                      defaultValue={initialData.name || ""}
+                                      onInput={(e) => {
+                                        if (errors.name && e.currentTarget.value.trim()) {
+                                          setErrors(prev => ({ ...prev, name: '' }));
+                                        }
+                                      }}
+                                    />
+                                    {errors.name && <div className="field-error">{errors.name}</div>}
                                 </div>
-                                <div className="_3xNCye">
-                                    <label htmlFor="phone">10-digit mobile number</label>
-                                    <input id="phone" name="phone" type="tel" defaultValue={initialData.phone || ""} />
+                                <div className={`_3xNCye ${errors.phone ? 'has-error' : ''}`}>
+                                    <label htmlFor="phone">10-digit mobile number *</label>
+                                    <input
+                                      id="phone"
+                                      name="phone"
+                                      type="tel"
+                                      inputMode="numeric"
+                                      maxLength={10}
+                                      defaultValue={initialData.phone || ""}
+                                      onInput={(e) => {
+                                        e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 10);
+                                        if (errors.phone && e.currentTarget.value.length === 10) {
+                                          setErrors(prev => ({ ...prev, phone: '' }));
+                                        }
+                                      }}
+                                      onBlur={(e) => {
+                                        const val = e.currentTarget.value.trim();
+                                        if (val && !/^\d{10}$/.test(val)) {
+                                          setErrors(prev => ({ ...prev, phone: "Must be 10 digits" }));
+                                        }
+                                      }}
+                                    />
+                                    {errors.phone && <div className="field-error">{errors.phone}</div>}
                                 </div>
-                                <div className="_3xNCye">
-                                    <label htmlFor="pincode">Pincode</label>
-                                    <input id="pincode" name="pincode" type="number" defaultValue={initialData.pincode || ""} />
+                                <div className={`_3xNCye ${errors.pincode ? 'has-error' : ''}`}>
+                                    <label htmlFor="pincode">Pincode *</label>
+                                    <input
+                                      id="pincode"
+                                      name="pincode"
+                                      type="text"
+                                      inputMode="numeric"
+                                      maxLength={6}
+                                      defaultValue={initialData.pincode || ""}
+                                      onInput={(e) => {
+                                        e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 6);
+                                        if (errors.pincode && e.currentTarget.value.length === 6) {
+                                          setErrors(prev => ({ ...prev, pincode: '' }));
+                                        }
+                                      }}
+                                      onBlur={(e) => {
+                                        const val = e.currentTarget.value.trim();
+                                        if (val && !/^\d{6}$/.test(val)) {
+                                          setErrors(prev => ({ ...prev, pincode: "Must be 6 digits" }));
+                                        }
+                                      }}
+                                    />
+                                    {errors.pincode && <div className="field-error">{errors.pincode}</div>}
                                 </div>
                                 <div className="_3xNCye">
                                     <label htmlFor="locality">Locality</label>
                                     <input id="locality" name="locality" type="text" defaultValue={initialData.locality || ""} />
                                 </div>
-                                <div className="_3xNCye full-width">
-                                    <label htmlFor="address">Address (Area and Street)</label>
-                                    <textarea id="address" name="address" defaultValue={initialData.address || ""} />
+                                <div className={`_3xNCye full-width ${errors.address ? 'has-error' : ''}`}>
+                                    <label htmlFor="address">Address (Area and Street) *</label>
+                                    <textarea
+                                      id="address"
+                                      name="address"
+                                      defaultValue={initialData.address || ""}
+                                      onInput={(e) => {
+                                        if (errors.address && e.currentTarget.value.trim()) {
+                                          setErrors(prev => ({ ...prev, address: '' }));
+                                        }
+                                      }}
+                                    />
+                                    {errors.address && <div className="field-error">{errors.address}</div>}
                                 </div>
-                                <div className="_3xNCye">
-                                    <label htmlFor="city">City/District/Town</label>
-                                    <input id="city" name="city" type="text" defaultValue={initialData.city || ""} />
+                                <div className={`_3xNCye ${errors.city ? 'has-error' : ''}`}>
+                                    <label htmlFor="city">City/District/Town *</label>
+                                    <input
+                                      id="city"
+                                      name="city"
+                                      type="text"
+                                      defaultValue={initialData.city || ""}
+                                      onInput={(e) => {
+                                        if (errors.city && e.currentTarget.value.trim()) {
+                                          setErrors(prev => ({ ...prev, city: '' }));
+                                        }
+                                      }}
+                                    />
+                                    {errors.city && <div className="field-error">{errors.city}</div>}
                                 </div>
                                 <div className="_3xNCye has-value">
                                     <label htmlFor="state">State</label>
@@ -189,7 +417,7 @@ function AddressContent() {
                                     {isStateDropdownOpen && (
                                         <>
                                             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9 }} onClick={(e) => { e.stopPropagation(); setIsStateDropdownOpen(false); }} />
-                                            <div style={{ position: "absolute", top: "100%", left: 0, width: "100%", maxHeight: "200px", overflowY: "auto", background: "white", zIndex: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e0e0e0" }}>
+                                            <div style={{ position: "absolute", top: "100%", left: 0, width: "100%", maxHeight: "180px", overflowY: "auto", background: "white", zIndex: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e0e0e0" }}>
                                                 {statesList.map(stateName => (
                                                     <div key={stateName} style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #eee", color: selectedState === stateName ? "#2874f0" : "#333", backgroundColor: selectedState === stateName ? "#f0f5ff" : "white" }} onClick={(e) => { e.stopPropagation(); setSelectedState(stateName); setIsStateDropdownOpen(false); }}>
                                                         {stateName}
@@ -203,9 +431,29 @@ function AddressContent() {
                                     <label htmlFor="landmark">Landmark (Optional)</label>
                                     <input id="landmark" name="landmark" type="text" defaultValue={initialData.landmark || ""} />
                                 </div>
-                                <div className="_3xNCye">
+                                <div className={`_3xNCye ${errors.altPhone ? 'has-error' : ''}`}>
                                     <label htmlFor="altPhone">Alternate Phone (Optional)</label>
-                                    <input id="altPhone" name="altPhone" type="tel" defaultValue={initialData.altPhone || ""} />
+                                    <input
+                                      id="altPhone"
+                                      name="altPhone"
+                                      type="tel"
+                                      inputMode="numeric"
+                                      maxLength={10}
+                                      defaultValue={initialData.altPhone || ""}
+                                      onInput={(e) => {
+                                        e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 10);
+                                        if (errors.altPhone && (!e.currentTarget.value || e.currentTarget.value.length === 10)) {
+                                          setErrors(prev => ({ ...prev, altPhone: '' }));
+                                        }
+                                      }}
+                                      onBlur={(e) => {
+                                        const val = e.currentTarget.value.trim();
+                                        if (val && !/^\d{10}$/.test(val)) {
+                                          setErrors(prev => ({ ...prev, altPhone: "Must be 10 digits" }));
+                                        }
+                                      }}
+                                    />
+                                    {errors.altPhone && <div className="field-error">{errors.altPhone}</div>}
                                 </div>
                             </div>
                             
@@ -235,7 +483,7 @@ function AddressContent() {
 
 export default function AddressPage() {
   return (
-    <Suspense fallback={<div className="store-shell" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+    <Suspense fallback={<div className="store-shell" style={{ height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
       <AddressContent />
     </Suspense>
   );
