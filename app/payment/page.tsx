@@ -388,7 +388,7 @@ function PaymentContent() {
         .pay-option.selected .radio-dot { display: block; }
         
         .footer-btn {
-            background: #fb641b;
+            background: #fbcd1e;
             color: white;
             border: none;
             width: 100%;
@@ -663,7 +663,11 @@ function PaymentContent() {
         </div>
       </section>
 
-      {/* Accordion Item 2: Cash on Delivery Section */}
+      {/*
+      ===============================================================
+      TEMPORARILY DISABLED: CASH ON DELIVERY
+      Uncomment this section below to re-enable interactive COD mode.
+      ===============================================================
       <section className="bg-white mt-2 shadow-sm overflow-hidden">
         <div
           id="header-cod"
@@ -715,7 +719,7 @@ function PaymentContent() {
                 </div>
               </div>
 
-              {/* Shared apps when in COD mode */}
+              // Shared apps when in COD mode
               <div id="shared-apps-container">
                 <div
                   className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`}
@@ -757,9 +761,19 @@ function PaymentContent() {
           )}
         </div>
       </section>
+      */}
 
       {/* Unavailable payment options */}
       <div className="bg-white mt-2 shadow-sm divide-y divide-gray-100">
+        <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
+          <img className="w-6 h-6 object-contain" src="/assets/images/cash-icon.svg" alt="Cash on Delivery" />
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <h3 className="text-[14px] font-semibold text-gray-800">Cash on Delivery</h3>
+              <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold tracking-wider">UNAVAILABLE</span>
+            </div>
+          </div>
+        </div>
         <div className="flex items-start gap-4 px-4 py-4 opacity-50 grayscale pointer-events-none">
           <img className="w-6" src="/assets/images/card.svg" alt="Card" />
           <div className="flex-1">
