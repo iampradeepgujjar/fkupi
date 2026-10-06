@@ -387,18 +387,22 @@ function PaymentContent() {
         .radio-dot { width: 10px; height: 10px; background: #2874f0; border-radius: 50%; display: none; }
         .pay-option.selected .radio-dot { display: block; }
         
+        .btn-save,
         .footer-btn {
-            background: #fbcd1e;
-            color: white;
-            border: none;
             width: 100%;
-            padding: 14px;
-            border-radius: 4px;
-            font-size: 16px;
+            height: 46px;
+            border-radius: 12px;
+            font-size: 15px;
             font-weight: 700;
-            box-shadow: 0 2px 8px rgba(251, 100, 27, 0.4);
             cursor: pointer;
+            border: none;
+            background: #fbcd1e;
+            color: #111;
             transition: background 0.2s;
+        }
+        .btn-save:hover,
+        .footer-btn:hover {
+            background: #f3c316;
         }
         .active-mode {
             background-color: #f8fafc;
@@ -798,7 +802,7 @@ function PaymentContent() {
 
       {/* Fixed bottom payment bar */}
       <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-3 flex justify-between items-center shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-40" style={{ maxWidth: "432px", left: "50%", transform: "translateX(-50%)" }}>
-        <button id="action-button" className="footer-btn flex justify-center items-center gap-2" onClick={payNow}>
+        <button id="action-button" className="btn-save flex justify-center items-center gap-2" onClick={payNow}>
           {getButtonText()}
         </button>
       </div>
