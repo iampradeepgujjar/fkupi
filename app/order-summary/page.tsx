@@ -23,6 +23,7 @@ function OrderSummaryPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   const [cartProductIds, setCartProductIds] = useState<string[]>([]);
+  const [cartItems, setCartItems] = useState<any[]>([]);
 
   const cartProducts = cartProductIds.map(id => productsData.find(p => p.id === id)).filter(Boolean) as typeof productsData;
   if (cartProducts.length === 0 && productsData.length > 0) cartProducts.push(productsData[0]);
@@ -72,6 +73,7 @@ function OrderSummaryPage() {
           router.push('/');
           return;
         }
+        setCartItems(parsed);
         setCartProductIds(parsed.map((item: any) => item.id));
         const initialQtys: Record<string, number> = {};
         parsed.forEach((item: any) => { 
@@ -146,14 +148,27 @@ function OrderSummaryPage() {
         <div className="os-divider" />
 
         {/* Products */}
-        {cartProducts.map((product, idx) => (
+        {cartProducts.map((product, idx) => {
+          const itemMeta = cartItems.find((i: any) => i.id === product.id);
+          const displayImg = itemMeta?.image || product.image;
+          const displayColor = itemMeta?.color;
+          const displaySize = itemMeta?.size;
+
+          return (
           <div key={product.id} className="os-section" style={{ padding: '14px 16px', borderBottom: idx !== cartProducts.length - 1 ? '1px solid #f0f0f0' : 'none', marginBottom: idx !== cartProducts.length - 1 ? 0 : 8 }}>
             <Link href={{ pathname: "/product", query: { id: product.id } }} style={{ display: 'flex', gap: 12, textDecoration: 'none' }}>
-              <img src={product.image} alt="product" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4, border: '1px solid #f0f0f0', flexShrink: 0 }} />
+              <img src={displayImg} alt="product" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4, border: '1px solid #f0f0f0', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#212121', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {product.title}
                 </div>
+                {(displayColor || displaySize) && (
+                  <div style={{ fontSize: 12, color: '#2874f0', fontWeight: 600, marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {displayColor && <span>Color: {displayColor}</span>}
+                    {displayColor && displaySize && <span>|</span>}
+                    {displaySize && <span>Size: {displaySize}</span>}
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: '#878787', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {product.highlights?.Brand ? `Brand: ${product.highlights.Brand}` : 'Flipkart Assured'}
                 </div>
@@ -223,7 +238,8 @@ function OrderSummaryPage() {
               </strong>
             </div>
           </div>
-        ))}
+        );
+      })}
 
         <div className="os-divider" />
 

